@@ -1,3 +1,5 @@
 build/
 .vscode
 *.bin
+*.jpg
+*.jpeg
