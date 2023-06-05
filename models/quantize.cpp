@@ -53,26 +53,26 @@ bool clip_vision_model_quantize(const std::string &fname_inp, const std::string 
         finp.read((char *)&hparams.image_size, sizeof(hparams.image_size));
         finp.read((char *)&hparams.patch_size, sizeof(hparams.patch_size));
         finp.read((char *)&hparams.hidden_size, sizeof(hparams.hidden_size));
-        finp.read((char *)&hparams.intermediate_size, sizeof(hparams.intermediate_size));
+        finp.read((char *)&hparams.n_intermediate, sizeof(hparams.n_intermediate));
         finp.read((char *)&hparams.projection_dim, sizeof(hparams.projection_dim));
-        finp.read((char *)&hparams.num_attention_heads, sizeof(hparams.num_attention_heads));
-        finp.read((char *)&hparams.num_hidden_layers, sizeof(hparams.num_hidden_layers));
+        finp.read((char *)&hparams.n_head, sizeof(hparams.n_head));
+        finp.read((char *)&hparams.n_layer, sizeof(hparams.n_layer));
         finp.read((char *)&hparams.ftype, sizeof(hparams.ftype));
 
         printf("%s: image_size = %d\n", __func__, hparams.image_size);
         printf("%s: patch_size   = %d\n", __func__, hparams.patch_size);
         printf("%s: hidden_size  = %d\n", __func__, hparams.hidden_size);
-        printf("%s: intermediate_size  = %d\n", __func__, hparams.intermediate_size);
+        printf("%s: n_intermediate  = %d\n", __func__, hparams.n_intermediate);
         printf("%s: projection_dim = %d\n", __func__, hparams.projection_dim);
         printf("%s: ftype   = %d\n", __func__, hparams.ftype);
 
         fout.write((char *)&hparams.image_size, sizeof(hparams.image_size));
         fout.write((char *)&hparams.patch_size, sizeof(hparams.patch_size));
         fout.write((char *)&hparams.hidden_size, sizeof(hparams.hidden_size));
-        fout.write((char *)&hparams.intermediate_size, sizeof(hparams.intermediate_size));
+        fout.write((char *)&hparams.n_intermediate, sizeof(hparams.n_intermediate));
         fout.write((char *)&hparams.projection_dim, sizeof(hparams.projection_dim));
-        fout.write((char *)&hparams.num_attention_heads, sizeof(hparams.num_attention_heads));
-        fout.write((char *)&hparams.num_hidden_layers, sizeof(hparams.num_hidden_layers));
+        fout.write((char *)&hparams.n_head, sizeof(hparams.n_head));
+        fout.write((char *)&hparams.n_layer, sizeof(hparams.n_layer));
         fout.write((char *)&ftype, sizeof(hparams.ftype));
     }
 
