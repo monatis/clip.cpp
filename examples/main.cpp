@@ -6,9 +6,9 @@ int main()
 
     // load the image
     clip_image_u8 img0;
-    if (!clip_image_load_from_file("/home/yusuf/clip-in-ggml/examples/grass.jpeg", img0))
+    if (!clip_image_load_from_file("/home/yusuf/clip-in-ggml/examples/mysn.jpeg", img0))
     {
-        fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, "grass.jpeg");
+        fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, "mysn.jpeg");
         return 1;
     }
 

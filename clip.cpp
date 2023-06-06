@@ -193,7 +193,7 @@ struct clip_ctx *clip_model_load(const char *fname)
 
         // Calculate size requirements
 
-        model_mem_req += hidden_size * ggml_type_sizef(GGML_TYPE_F32);
+        model_mem_req += hidden_size * ggml_type_sizef(GGML_TYPE_F32);                       // class_embedding
         model_mem_req += hidden_size * 3 * patch_size * patch_size * ggml_type_sizef(wtype); // patch_embeddings
         model_mem_req += hidden_size * num_patches * ggml_type_sizef(wtype);                 // position_embeddings
 
@@ -441,7 +441,7 @@ struct clip_ctx *clip_model_load(const char *fname)
     // Calculate space requirements for setting up context buffers later
     {
         // TODO: We set the initial buffer size to 16MB and hope it's enough. Maybe there is a better way to do this?
-        new_clip->buf_compute.resize(16 * 1024 * 1024);
+        new_clip->buf_compute.resize(20 * 1024 * 1024);
     }
 
     return new_clip;
@@ -506,10 +506,28 @@ bool clip_image_encode(
 
     struct ggml_tensor *cur = ggml_conv_2d_sk_p0(ctx0, model.patch_embeddings, inp);
     cur = ggml_reshape_2d(ctx0, cur, num_patches, hidden_size);
-    ggml_set_name(cur, "check");
+    struct ggml_tensor *embeddings = ggml_new_tensor_2d(ctx0, GGML_TYPE_F32, num_positions, hidden_size);
+    embeddings = ggml_acc(ctx0, embeddings, model.class_embedding, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], 0);
+    embeddings = ggml_acc(ctx0, embeddings, cur, cur->nb[1], cur->nb[2], cur->nb[3], model.class_embedding->nb[0] * hidden_size);
+    embeddings = ggml_add(ctx0, embeddings,
+                          ggml_transpose(ctx0, model.position_embeddings));
+    embeddings = ggml_transpose(ctx0, embeddings);
+    embeddings = ggml_cont(ctx0, embeddings);
+
+    // pre-layernorm
+    {
+        embeddings = ggml_norm(ctx0, embeddings);
+
+        embeddings = ggml_add(ctx0,
+                              ggml_mul(ctx0,
+                                       ggml_repeat(ctx0, model.pre_ln_w, embeddings),
+                                       embeddings),
+                              ggml_repeat(ctx0, model.pre_ln_b, embeddings));
+    }
+    ggml_set_name(embeddings, "check");
 
     // run the computation
-    ggml_build_forward_expand(&gf, cur);
+    ggml_build_forward_expand(&gf, embeddings);
     ggml_graph_compute(ctx0, &gf);
 
     // print
@@ -517,36 +535,14 @@ bool clip_image_encode(
         auto print_t_f32 = [&](struct ggml_tensor *t)
         {
             float *data = (float *)t->data;
-            printf("dims: %jd %jd %jd %jd\n", t->ne[0], t->ne[1], t->ne[2], t->ne[3]);
+            printf("dtype: f32, dims: %jd %jd %jd %jd, nb: %jd %jd %jd %jd\n", t->ne[0], t->ne[1], t->ne[2], t->ne[3], t->nb[0], t->nb[1], t->nb[2], t->nb[3]);
             printf("data: ");
-            for (int i = 0; i < std::min((int)t->ne[0], 10); i++)
+            for (int i = 0; i < std::min((int)t->ne[0], 20); i++)
             {
                 printf("%f ", data[i]);
             }
-            printf("\n");
-            // for (int y = 0; y < 64; ++y) {
-            //     for (int x = 0; x < 64; ++x) {
-            //         printf("%5.2f ", data[y*64 + x]);
-            //     }
-            //     printf("\n");
-            // }
-            // printf("\n");
-            for (int y = 0; y < 14; ++y)
-            {
-                for (int x = 0; x < 14; ++x)
-                {
-                    printf("%7.4f ", data[(y * 14 + x) * 2304 + 231]);
-                }
-                printf("\n");
-            }
-            printf("\n");
-            // for (int y = 0; y < 64; ++y) {
-            //     for (int x = 0; x < 64; ++x) {
-            //         printf("%5.2f ", data[(y*64 + x)*768 + 231]);
-            //     }
-            //     printf("\n");
-            // }
-            // printf("\n");
+
+            // printf("\n\n");
             double sum = 0.0;
             for (int i = 0; i < ggml_nelements(t); i++)
             {
@@ -558,13 +554,13 @@ bool clip_image_encode(
         auto print_t_f16 = [&](struct ggml_tensor *t)
         {
             ggml_fp16_t *data = (ggml_fp16_t *)t->data;
-            printf("dims: %jd %jd %jd %jd\n", t->ne[0], t->ne[1], t->ne[2], t->ne[3]);
+            printf("dtype: f16, dims: %jd %jd %jd %jd\n", t->ne[0], t->ne[1], t->ne[2], t->ne[3]);
             printf("data: ");
             for (int i = 0; i < std::min((int)t->ne[0], 10); i++)
             {
                 printf("%f ", ggml_fp16_to_fp32(data[i]));
             }
-            printf("\n");
+            printf("\n\n");
             double sum = 0.0;
             for (int i = 0; i < ggml_nelements(t); i++)
             {
