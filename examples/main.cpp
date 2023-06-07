@@ -25,7 +25,8 @@ int main()
     fprintf(stderr, "%s: preprocessed image (%d x %d)\n", __func__, img1.nx, img1.ny);
 
     auto ctx = clip_model_load("/home/yusuf/clip-vit-base-patch32/ggml-vision-model-f16.bin");
-    clip_image_encode(ctx, img1, 4);
+    float *img_vec;
+    clip_image_encode(ctx, img1, 4, img_vec);
     printf("done");
     return 0;
 }

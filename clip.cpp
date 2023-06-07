@@ -441,7 +441,7 @@ struct clip_ctx *clip_model_load(const char *fname)
     // Calculate space requirements for setting up context buffers later
     {
         // TODO: We set the initial buffer size to 16MB and hope it's enough. Maybe there is a better way to do this?
-        new_clip->buf_compute.resize(20 * 1024 * 1024);
+        new_clip->buf_compute.resize(256 * 1024 * 1024);
     }
 
     return new_clip;
@@ -456,7 +456,8 @@ void clip_free(clip_ctx *ctx)
 bool clip_image_encode(
     const clip_ctx *ctx,
     const clip_image_f32 &img,
-    int n_threads)
+    int n_threads,
+    float *vec)
 {
     const auto &model = ctx->vision_model;
     const auto &hparams = model.hparams;
@@ -466,6 +467,8 @@ bool clip_image_encode(
     const int num_patches = ((image_size / patch_size) * (image_size / patch_size));
     const int num_positions = num_patches + 1;
     const int hidden_size = hparams.hidden_size;
+    const int n_head = hparams.n_head;
+    const int d_head = hidden_size / n_head;
     const int n_layer = hparams.n_layer;
     const int n_intermediate = hparams.n_intermediate;
     const int projection_dim = hparams.projection_dim;
@@ -509,10 +512,9 @@ bool clip_image_encode(
     struct ggml_tensor *embeddings = ggml_new_tensor_2d(ctx0, GGML_TYPE_F32, num_positions, hidden_size);
     embeddings = ggml_acc(ctx0, embeddings, model.class_embedding, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], 0);
     embeddings = ggml_acc(ctx0, embeddings, cur, cur->nb[1], cur->nb[2], cur->nb[3], model.class_embedding->nb[0] * hidden_size);
-    embeddings = ggml_add(ctx0, embeddings,
-                          ggml_transpose(ctx0, model.position_embeddings));
-    embeddings = ggml_transpose(ctx0, embeddings);
-    embeddings = ggml_cont(ctx0, embeddings);
+    embeddings = ggml_cont(ctx0, ggml_transpose(ctx0, embeddings));
+    // embeddings = ggml_cont(ctx0, embeddings);
+    embeddings = ggml_add(ctx0, embeddings, model.position_embeddings);
 
     // pre-layernorm
     {
@@ -524,6 +526,114 @@ bool clip_image_encode(
                                        embeddings),
                               ggml_repeat(ctx0, model.pre_ln_b, embeddings));
     }
+
+    // loop over layers
+    for (int il = 0; il < n_layer; il++)
+    {
+        cur = embeddings;
+
+        // self-attention
+        {
+            struct ggml_tensor *Qcur = cur;
+            Qcur = ggml_reshape_3d(ctx0,
+                                   ggml_add(ctx0, ggml_repeat(ctx0, model.layers[il].q_b, Qcur),
+                                            ggml_mul_mat(ctx0, model.layers[il].q_w, Qcur)),
+                                   d_head, n_head, num_positions);
+            struct ggml_tensor *Q = ggml_permute(ctx0, Qcur, 0, 2, 1, 3);
+
+            struct ggml_tensor *Kcur = cur;
+            Kcur = ggml_reshape_3d(ctx0,
+                                   ggml_add(ctx0, ggml_repeat(ctx0, model.layers[il].k_b, Kcur),
+                                            ggml_mul_mat(ctx0, model.layers[il].k_w, Kcur)),
+                                   d_head, n_head, num_positions);
+            struct ggml_tensor *K = ggml_permute(ctx0, Kcur, 0, 2, 1, 3);
+
+            struct ggml_tensor *Vcur = cur;
+            Vcur = ggml_reshape_3d(ctx0,
+                                   ggml_add(ctx0, ggml_repeat(ctx0, model.layers[il].v_b, Vcur),
+                                            ggml_mul_mat(ctx0, model.layers[il].v_w, Vcur)),
+                                   d_head, n_head, num_positions);
+            struct ggml_tensor *V = ggml_permute(ctx0, Vcur, 0, 2, 1, 3);
+
+            struct ggml_tensor *KQ = ggml_mul_mat(ctx0, K, Q);
+            // KQ = soft_max(KQ / sqrt(head width))
+            KQ = ggml_soft_max(ctx0,
+                               ggml_scale(ctx0,
+                                          KQ,
+                                          ggml_new_f32(ctx0, 1.0f / sqrt((float)d_head))));
+
+            V = ggml_cont(ctx0, ggml_transpose(ctx0, V));
+            struct ggml_tensor *KQV = ggml_mul_mat(ctx0, V, KQ);
+            KQV = ggml_permute(ctx0, KQV, 0, 2, 1, 3);
+
+            cur = ggml_cpy(ctx0,
+                           KQV,
+                           ggml_new_tensor_2d(ctx0, GGML_TYPE_F32, hidden_size, num_positions));
+        }
+        // attention output
+        cur = ggml_add(ctx0,
+                       ggml_repeat(ctx0, model.layers[il].o_b, cur),
+                       ggml_mul_mat(ctx0, model.layers[il].o_w, cur));
+
+        // re-add the layer input
+        cur = ggml_add(ctx0, cur, embeddings);
+
+        // attention norm
+        {
+            cur = ggml_norm(ctx0, cur);
+
+            cur = ggml_add(ctx0,
+                           ggml_mul(ctx0,
+                                    ggml_repeat(ctx0, model.layers[il].ln_1_w, cur),
+                                    cur),
+                           ggml_repeat(ctx0, model.layers[il].ln_1_b, cur));
+        }
+        struct ggml_tensor *att_output = cur;
+        // intermediate_output = self.intermediate(attention_output)
+        cur = ggml_mul_mat(ctx0, model.layers[il].ff_i_w, cur);
+        cur = ggml_add(ctx0,
+                       ggml_repeat(ctx0, model.layers[il].ff_i_b, cur),
+                       cur);
+        cur = ggml_gelu(ctx0, cur);
+
+        // layer_output = self.output(intermediate_output, attention_output)
+        cur = ggml_mul_mat(ctx0, model.layers[il].ff_o_w, cur);
+        cur = ggml_add(ctx0,
+                       ggml_repeat(ctx0, model.layers[il].ff_o_b, cur),
+                       cur);
+        // attentions bypass the intermediate layer
+        cur = ggml_add(ctx0, att_output, cur);
+
+        // output norm
+        {
+            cur = ggml_norm(ctx0, cur);
+
+            cur = ggml_add(ctx0,
+                           ggml_mul(ctx0,
+                                    ggml_repeat(ctx0, model.layers[il].ln_2_w, cur),
+                                    cur),
+                           ggml_repeat(ctx0, model.layers[il].ln_2_b, cur));
+        }
+        embeddings = cur;
+    }
+
+    // get the output of cls token
+    embeddings = ggml_get_rows(ctx0, embeddings, ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, 1));
+
+    // post-layernorm
+    {
+        embeddings = ggml_norm(ctx0, embeddings);
+
+        embeddings = ggml_add(ctx0,
+                              ggml_mul(ctx0,
+                                       ggml_repeat(ctx0, model.post_ln_w, embeddings),
+                                       embeddings),
+                              ggml_repeat(ctx0, model.post_ln_b, embeddings));
+    }
+
+    // final visual projection
+    embeddings = ggml_mul_mat(ctx0, model.projection, embeddings);
+
     ggml_set_name(embeddings, "check");
 
     // run the computation
@@ -580,7 +690,9 @@ bool clip_image_encode(
         }
     }
 
-    // printf("used_mem = %zu\n", ggml_used_mem(ctx0));
+    printf("used_mem = %zu\n", ggml_used_mem(ctx0));
+
+    vec = ggml_get_data_f32(embeddings);
 
     ggml_free(ctx0);
     return true;

@@ -160,7 +160,8 @@ bool clip_image_preprocess(const clip_image_u8 &img, clip_image_f32 &res);
 bool clip_image_encode(
     const clip_ctx *ctx,
     const clip_image_f32 &img,
-    int n_threads);
+    int n_threads,
+    float *vec);
 // #ifdef __cplusplus
 // }
 // #endif
