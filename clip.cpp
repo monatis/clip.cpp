@@ -28,6 +28,119 @@ bool clip_image_load_from_file(const std::string &fname, clip_image_u8 &img)
     return true;
 }
 
+float bicubic_interpolation(float v00, float v01, float v10, float v11, float dx, float dy)
+{
+    // Bicubic interpolation coefficients
+    const float a = -0.5f;
+    const float b = 1.5f;
+    const float c = -1.5f;
+    const float d = 0.5f;
+
+    // Compute interpolated value using bicubic interpolation formula
+    float p0 = v00;
+    float p1 = v01;
+    float p2 = v10;
+    float p3 = v11;
+
+    float interp_value = a * p0 + b * p1 + c * p2 + d * p3;
+
+    float dx2 = dx * dx;
+    float dx3 = dx2 * dx;
+    float dy2 = dy * dy;
+    float dy3 = dy2 * dy;
+
+    interp_value += ((a * p0 + b * p1 + c * p2 + d * p3) - (a * p0 + b * p1 + c * p2 + d * p3)) * dx;
+    interp_value += ((a * p0 + b * p1 + c * p2 + d * p3) - (a * p0 + b * p1 + c * p2 + d * p3)) * dy;
+    interp_value += ((a * p0 + b * p1 + c * p2 + d * p3) - (a * p0 + b * p1 + c * p2 + d * p3)) * dx * dy;
+
+    return interp_value;
+}
+
+bool clip_image_preprocess_bicubic(const clip_image_u8 &img, clip_image_f32 &res)
+{
+    const int nx = img.nx;
+    const int ny = img.ny;
+
+    const int nx2 = 224;
+    const int ny2 = 224;
+    const float scale = std::min(nx, ny) / 224.0f;
+
+    const int nx3 = int(nx / scale + 0.5f);
+    const int ny3 = int(ny / scale + 0.5f);
+    res.nx = nx3;
+    res.ny = ny3;
+    res.data.resize(3 * nx3 * ny3);
+
+    fprintf(stderr, "%s: scale = %f\n", __func__, scale);
+
+    const float m3[3] = {0.45145466f, 0.4578275f, 0.40821073f};
+    const float s3[3] = {0.26862954f, 0.26130258f, 0.27577711f};
+
+    for (int y = 0; y < ny3; y++)
+    {
+        for (int x = 0; x < nx3; x++)
+        {
+            for (int c = 0; c < 3; c++)
+            {
+                // bicubic interpolation
+                const float sx = (x + 0.5f) * scale - 0.5f;
+                const float sy = (y + 0.5f) * scale - 0.5f;
+
+                const int x0 = std::max(0, (int)std::floor(sx));
+                const int y0 = std::max(0, (int)std::floor(sy));
+
+                const int x1 = std::min(x0 + 1, nx - 1);
+                const int y1 = std::min(y0 + 1, ny - 1);
+
+                const float dx = sx - x0;
+                const float dy = sy - y0;
+
+                const int j00 = 3 * (y0 * nx + x0) + c;
+                const int j01 = 3 * (y0 * nx + x1) + c;
+                const int j10 = 3 * (y1 * nx + x0) + c;
+                const int j11 = 3 * (y1 * nx + x1) + c;
+
+                const float v00 = img.data[j00];
+                const float v01 = img.data[j01];
+                const float v10 = img.data[j10];
+                const float v11 = img.data[j11];
+
+                const float v0 = bicubic_interpolation(v00, v01, v10, v11, dx, dy);
+
+                const float v = v0;
+
+                const uint8_t v2 = std::min(std::max(std::round(v), 0.0f), 255.0f);
+
+                const int i = 3 * (y * nx3 + x) + c;
+
+                res.data[i] = ((float(v2) / 255.0f) - m3[c]) / s3[c];
+            }
+        }
+    }
+
+    // Center crop to obtain final 224x224 image
+    const int crop_x = (nx3 - nx2) / 2;
+    const int crop_y = (ny3 - ny2) / 2;
+
+    for (int y = 0; y < ny2; y++)
+    {
+        for (int x = 0; x < nx2; x++)
+        {
+            const int i = 3 * ((y + crop_y) * nx3 + (x + crop_x));
+            const int j = 3 * (y * nx2 + x);
+
+            res.data[j] = res.data[i];
+            res.data[j + 1] = res.data[i + 1];
+            res.data[j + 2] = res.data[i + 2];
+        }
+    }
+    res.nx = nx2;
+    res.ny = ny2;
+    res.data.resize(3 * ny2 * nx2);
+
+    return true;
+}
+
 // ref: https://github.com/facebookresearch/segment-anything/blob/efeab7296ab579d4a261e554eca80faf6b33924a/segment_anything/modeling/clip.py#L164
 // resize largest dimension to 1024
 // normalize: x = (x - mean) / std
@@ -509,11 +622,11 @@ bool clip_image_encode(
 
     struct ggml_tensor *cur = ggml_conv_2d_sk_p0(ctx0, model.patch_embeddings, inp);
     cur = ggml_reshape_2d(ctx0, cur, num_patches, hidden_size);
-    struct ggml_tensor *embeddings = ggml_new_tensor_2d(ctx0, GGML_TYPE_F32, num_positions, hidden_size);
+    cur = ggml_cont(ctx0, ggml_transpose(ctx0, cur));
+
+    struct ggml_tensor *embeddings = ggml_new_tensor_2d(ctx0, GGML_TYPE_F32, hidden_size, num_positions);
     embeddings = ggml_acc(ctx0, embeddings, model.class_embedding, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], 0);
-    embeddings = ggml_acc(ctx0, embeddings, cur, cur->nb[1], cur->nb[2], cur->nb[3], model.class_embedding->nb[0] * hidden_size);
-    embeddings = ggml_cont(ctx0, ggml_transpose(ctx0, embeddings));
-    // embeddings = ggml_cont(ctx0, embeddings);
+    embeddings = ggml_acc(ctx0, embeddings, cur, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], model.class_embedding->nb[0] * hidden_size);
     embeddings = ggml_add(ctx0, embeddings, model.position_embeddings);
 
     // pre-layernorm
@@ -530,7 +643,18 @@ bool clip_image_encode(
     // loop over layers
     for (int il = 0; il < n_layer; il++)
     {
-        cur = embeddings;
+        cur = embeddings; // embeddings = residual, cur = hidden_states
+
+        // layernorm1
+        {
+            cur = ggml_norm(ctx0, cur);
+
+            cur = ggml_add(ctx0,
+                           ggml_mul(ctx0,
+                                    ggml_repeat(ctx0, model.layers[il].ln_1_w, cur),
+                                    cur),
+                           ggml_repeat(ctx0, model.layers[il].ln_1_b, cur));
+        }
 
         // self-attention
         {
@@ -575,36 +699,12 @@ bool clip_image_encode(
                        ggml_repeat(ctx0, model.layers[il].o_b, cur),
                        ggml_mul_mat(ctx0, model.layers[il].o_w, cur));
 
-        // re-add the layer input
+        // re-add the layer input, e.g., residual
         cur = ggml_add(ctx0, cur, embeddings);
 
-        // attention norm
-        {
-            cur = ggml_norm(ctx0, cur);
+        embeddings = cur; // embeddings = residual, cur = hidden_states
 
-            cur = ggml_add(ctx0,
-                           ggml_mul(ctx0,
-                                    ggml_repeat(ctx0, model.layers[il].ln_1_w, cur),
-                                    cur),
-                           ggml_repeat(ctx0, model.layers[il].ln_1_b, cur));
-        }
-        struct ggml_tensor *att_output = cur;
-        // intermediate_output = self.intermediate(attention_output)
-        cur = ggml_mul_mat(ctx0, model.layers[il].ff_i_w, cur);
-        cur = ggml_add(ctx0,
-                       ggml_repeat(ctx0, model.layers[il].ff_i_b, cur),
-                       cur);
-        cur = ggml_gelu(ctx0, cur);
-
-        // layer_output = self.output(intermediate_output, attention_output)
-        cur = ggml_mul_mat(ctx0, model.layers[il].ff_o_w, cur);
-        cur = ggml_add(ctx0,
-                       ggml_repeat(ctx0, model.layers[il].ff_o_b, cur),
-                       cur);
-        // attentions bypass the intermediate layer
-        cur = ggml_add(ctx0, att_output, cur);
-
-        // output norm
+        // layernorm2
         {
             cur = ggml_norm(ctx0, cur);
 
@@ -614,6 +714,21 @@ bool clip_image_encode(
                                     cur),
                            ggml_repeat(ctx0, model.layers[il].ln_2_b, cur));
         }
+
+        cur = ggml_mul_mat(ctx0, model.layers[il].ff_i_w, cur);
+        cur = ggml_add(ctx0,
+                       ggml_repeat(ctx0, model.layers[il].ff_i_b, cur),
+                       cur);
+        cur = ggml_gelu(ctx0, cur);
+
+        cur = ggml_mul_mat(ctx0, model.layers[il].ff_o_w, cur);
+        cur = ggml_add(ctx0,
+                       ggml_repeat(ctx0, model.layers[il].ff_o_b, cur),
+                       cur);
+
+        // residual 2
+        cur = ggml_add(ctx0, embeddings, cur);
+
         embeddings = cur;
     }
 
@@ -692,8 +807,9 @@ bool clip_image_encode(
 
     printf("used_mem = %zu\n", ggml_used_mem(ctx0));
 
-    vec = ggml_get_data_f32(embeddings);
+    memcpy(vec, ggml_get_data_f32(embeddings), sizeof(float) * projection_dim);
 
     ggml_free(ctx0);
+
     return true;
 }

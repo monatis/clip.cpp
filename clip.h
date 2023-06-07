@@ -157,6 +157,7 @@ struct clip_image_f32
 };
 bool clip_image_load_from_file(const std::string &fname, clip_image_u8 &img);
 bool clip_image_preprocess(const clip_image_u8 &img, clip_image_f32 &res);
+bool clip_image_preprocess_bicubic(const clip_image_u8 &img, clip_image_f32 &res);
 bool clip_image_encode(
     const clip_ctx *ctx,
     const clip_image_f32 &img,
