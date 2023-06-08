@@ -36,7 +36,7 @@ int main()
 
     // preprocess to f32
     clip_image_f32 img1;
-    if (!clip_image_preprocess_bicubic(img0, img1))
+    if (!clip_image_preprocess(img0, img1))
     {
         fprintf(stderr, "%s: failed to preprocess image\n", __func__);
         return 1;
