@@ -3,4 +3,4 @@ build/
 *.bin
 *.jpg
 *.jpeg
-*.txt
+tests/*.txt
