@@ -5,6 +5,7 @@
 #include <string>
 #include <map>
 #include <thread>
+#include "ggml/ggml.h"
 
 // TODO: make the API in C
 // #ifdef __cplusplus
@@ -17,13 +18,25 @@ struct app_params
     int32_t n_threads = std::min(4, (int32_t)std::thread::hardware_concurrency());
     int32_t port = 8080; // server mode port to bind
 
-    std::string model = "models/ggml-clip-vision-model-q5_1.bin"; // model path
+    std::string model = "models/ggml-model-q5_1.bin"; // model path
     std::string image_path;
 };
 
 bool app_params_parse(int argc, char **argv, app_params &params);
 
-// default hparams (ViT-B/32)
+// default hparams for text_model (ViT-B/32)
+struct clip_text_hparams
+{
+    int32_t n_vocab = 49408;
+    int32_t num_positions = 77;
+    int32_t hidden_size = 512;
+    int32_t n_intermediate = 2048;
+    int32_t projection_dim = 512;
+    int32_t n_head = 8;
+    int32_t n_layer = 12;
+};
+
+// default hparams for vision_model (ViT-B/32)
 struct clip_vision_hparams
 {
     int32_t image_size = 224;
@@ -33,10 +46,11 @@ struct clip_vision_hparams
     int32_t projection_dim = 512;
     int32_t n_head = 12;
     int32_t n_layer = 12;
-    int32_t ftype = 1;
 };
 
-struct clip_vision_layer
+typedef int32_t clip_vocab_id;
+
+struct clip_layer
 {
     // attention
     struct ggml_tensor *k_w;
@@ -65,6 +79,28 @@ struct clip_vision_layer
     struct ggml_tensor *ln_2_b;
 };
 
+struct clip_text_model
+{
+    clip_text_hparams hparams;
+
+    // embeddings
+    struct ggml_tensor *token_embeddings;
+    struct ggml_tensor *position_embeddings;
+
+    std::vector<clip_layer> layers;
+
+    struct ggml_tensor *post_ln_w;
+    struct ggml_tensor *post_ln_b;
+
+    struct ggml_tensor *projection;
+
+    // key + value memory
+    // struct ggml_tensor * memory_k;
+    // struct ggml_tensor * memory_v;
+
+    std::map<std::string, struct ggml_tensor *> tensors;
+};
+
 struct clip_vision_model
 {
     clip_vision_hparams hparams;
@@ -77,7 +113,7 @@ struct clip_vision_model
     struct ggml_tensor *pre_ln_w;
     struct ggml_tensor *pre_ln_b;
 
-    std::vector<clip_vision_layer> layers;
+    std::vector<clip_layer> layers;
 
     struct ggml_tensor *post_ln_w;
     struct ggml_tensor *post_ln_b;
@@ -88,23 +124,10 @@ struct clip_vision_model
     // struct ggml_tensor * memory_k;
     // struct ggml_tensor * memory_v;
 
-    //
-    struct ggml_context *ctx;
     std::map<std::string, struct ggml_tensor *> tensors;
 };
 
 struct clip_ctx *clip_model_load(const char *fname);
-
-// evaluate the clip vision model
-//
-//   - model:     the model
-//   - n_threads: number of threads to use
-//   - embeddings:  the embeddings of the image in the context
-//
-
-bool clip_vision_eval(
-    const clip_vision_model &model,
-    const int n_threads, float *embeddings);
 
 // Replacement for std::vector<uint8_t> that doesn't require zero-initialization.
 struct clip_buffer
@@ -127,7 +150,10 @@ struct clip_buffer
 
 struct clip_ctx
 {
+    clip_text_model text_model;
     clip_vision_model vision_model;
+    int32_t ftype = 1;
+    ggml_context *ctx;
 
     size_t mem_per_token;
     int64_t mem_per_input;
@@ -161,6 +187,13 @@ bool clip_image_load_from_file(const std::string &fname, clip_image_u8 &img);
 bool clip_image_preprocess(const clip_image_u8 &img, clip_image_f32 &res);
 
 bool clip_image_preprocess_bicubic(const clip_image_u8 &img, clip_image_f32 &res);
+
+bool clip_text_encode(
+    const clip_ctx *ctx,
+    int n_threads,
+    const clip_vocab_id *tokens,
+    const int N,
+    float *vec);
 
 bool clip_image_encode(
     const clip_ctx *ctx,

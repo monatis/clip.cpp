@@ -17,7 +17,9 @@ if len(sys.argv) < 3:
 dir_model = sys.argv[1]
 
 with open(dir_model + "/config.json", "r", encoding="utf-8") as f:
-    hparams = json.load(f)["vision_config"]
+    config = json.load(f)
+    v_hparams = config["vision_config"]
+    t_hparams = config["text_config"]
 
 # possible data types
 #   ftype == 0 -> float32
@@ -32,7 +34,7 @@ if len(sys.argv) > 2:
     if ftype < 0 or ftype > 1:
         print("Invalid ftype: " + str(ftype))
         sys.exit(1)
-    fname_out = sys.argv[1] + "/ggml-vision-model-" + ftype_str[ftype] + ".bin"
+    fname_out = sys.argv[1] + "/ggml-model-" + ftype_str[ftype] + ".bin"
 
 
 model = CLIPModel.from_pretrained(dir_model)
@@ -44,19 +46,33 @@ list_vars = model.state_dict()
 fout = open(fname_out, "wb")
 
 fout.write(struct.pack("i", 0x67676D6C))  # magic: ggml in hex
-fout.write(struct.pack("i", hparams["image_size"]))
-fout.write(struct.pack("i", hparams["patch_size"]))
-fout.write(struct.pack("i", hparams["hidden_size"]))
-fout.write(struct.pack("i", hparams["intermediate_size"]))
-fout.write(struct.pack("i", hparams["projection_dim"]))
-fout.write(struct.pack("i", hparams["num_attention_heads"]))
-fout.write(struct.pack("i", hparams["num_hidden_layers"]))
+
+# text_model hparams
+fout.write(struct.pack("i", t_hparams["vocab_size"]))
+fout.write(struct.pack("i", t_hparams["max_position_embeddings"]))
+fout.write(struct.pack("i", t_hparams["hidden_size"]))
+fout.write(struct.pack("i", t_hparams["intermediate_size"]))
+fout.write(struct.pack("i", t_hparams["projection_dim"]))
+fout.write(struct.pack("i", t_hparams["num_attention_heads"]))
+fout.write(struct.pack("i", t_hparams["num_hidden_layers"]))
+
+# vision_model hparams
+fout.write(struct.pack("i", v_hparams["image_size"]))
+fout.write(struct.pack("i", v_hparams["patch_size"]))
+fout.write(struct.pack("i", v_hparams["hidden_size"]))
+fout.write(struct.pack("i", v_hparams["intermediate_size"]))
+fout.write(struct.pack("i", v_hparams["projection_dim"]))
+fout.write(struct.pack("i", v_hparams["num_attention_heads"]))
+fout.write(struct.pack("i", v_hparams["num_hidden_layers"]))
 fout.write(struct.pack("i", ftype))
 
 for name in list_vars.keys():
-    if name == "vision_model.embeddings.position_ids" or not name.startswith(
-        "v"
-    ):  # skip text params for now
+    if name in [
+        "logit_scale",
+        "text_model.embeddings.position_ids",
+        "vision_model.embeddings.position_ids",
+    ]:
+        # we don't need this
         print(f"skipping parameter: {name}")
         continue
 

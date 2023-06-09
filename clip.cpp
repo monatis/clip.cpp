@@ -8,6 +8,15 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+struct clip_vocab
+{
+    std::map<std::string, clip_vocab_id> token_to_id;
+    std::map<std::string, clip_vocab_id> subword_token_to_id;
+
+    std::map<clip_vocab_id, std::string> _id_to_token;
+    std::map<clip_vocab_id, std::string> _id_to_subword_token;
+};
+
 bool clip_image_load_from_file(const std::string &fname, clip_image_u8 &img)
 {
     int nx, ny, nc;
@@ -240,9 +249,30 @@ struct clip_ctx *clip_model_load(const char *fname)
     }
 
     clip_ctx *new_clip = new clip_ctx;
+    clip_text_model &text_model = new_clip->text_model;
     clip_vision_model &vision_model = new_clip->vision_model;
 
-    // load hparams
+    // load hparams for text
+    {
+        auto &hparams = text_model.hparams;
+
+        fin.read((char *)&hparams.n_vocab, sizeof(hparams.n_vocab));
+        fin.read((char *)&hparams.num_positions, sizeof(hparams.num_positions));
+        fin.read((char *)&hparams.hidden_size, sizeof(hparams.hidden_size));
+        fin.read((char *)&hparams.n_intermediate, sizeof(hparams.n_intermediate));
+        fin.read((char *)&hparams.projection_dim, sizeof(hparams.projection_dim));
+        fin.read((char *)&hparams.n_head, sizeof(hparams.n_head));
+        fin.read((char *)&hparams.n_layer, sizeof(hparams.n_layer));
+
+        printf("%s: n_vocab = %d\n", __func__, hparams.n_vocab);
+        printf("%s: num_positions   = %d\n", __func__, hparams.num_positions);
+        printf("%s: t_hidden_size  = %d\n", __func__, hparams.hidden_size);
+        printf("%s: t_n_intermediate  = %d\n", __func__, hparams.n_intermediate);
+        printf("%s: t_n_head  = %d\n", __func__, hparams.n_head);
+        printf("%s: t_n_layer = %d\n", __func__, hparams.n_layer);
+    }
+
+    // load hparams for vision
     {
         auto &hparams = vision_model.hparams;
 
@@ -253,21 +283,21 @@ struct clip_ctx *clip_model_load(const char *fname)
         fin.read((char *)&hparams.projection_dim, sizeof(hparams.projection_dim));
         fin.read((char *)&hparams.n_head, sizeof(hparams.n_head));
         fin.read((char *)&hparams.n_layer, sizeof(hparams.n_layer));
-        fin.read((char *)&hparams.ftype, sizeof(hparams.ftype));
+        fin.read((char *)&new_clip->ftype, sizeof(new_clip->ftype));
 
         printf("%s: image_size = %d\n", __func__, hparams.image_size);
         printf("%s: patch_size   = %d\n", __func__, hparams.patch_size);
-        printf("%s: hidden_size  = %d\n", __func__, hparams.hidden_size);
-        printf("%s: n_intermediate  = %d\n", __func__, hparams.n_intermediate);
-        printf("%s: n_head  = %d\n", __func__, hparams.n_head);
-        printf("%s: n_layer = %d\n", __func__, hparams.n_layer);
-        printf("%s: ftype     = %d\n", __func__, hparams.ftype);
+        printf("%s: v_hidden_size  = %d\n", __func__, hparams.hidden_size);
+        printf("%s: v_n_intermediate  = %d\n", __func__, hparams.n_intermediate);
+        printf("%s: v_n_head  = %d\n", __func__, hparams.n_head);
+        printf("%s: v_n_layer = %d\n", __func__, hparams.n_layer);
+        printf("%s: ftype     = %d\n", __func__, new_clip->ftype);
     }
 
     // for the big tensors, we have the option to store the data in 16-bit floats or quantized
     // in order to save memory and also to speed up the computation
     ggml_type wtype = GGML_TYPE_COUNT;
-    switch (vision_model.hparams.ftype)
+    switch (new_clip->ftype)
     {
     case 0:
         wtype = GGML_TYPE_F32;
@@ -284,16 +314,47 @@ struct clip_ctx *clip_model_load(const char *fname)
     default:
     {
         fprintf(stderr, "%s: invalid model file '%s' (bad ftype value %d)\n",
-                __func__, fname, vision_model.hparams.ftype);
+                __func__, fname, new_clip->ftype);
         clip_free(new_clip);
         return nullptr;
     }
     }
 
-    auto &ctx = vision_model.ctx;
+    auto &ctx = new_clip->ctx;
     size_t model_mem_req = 0;
 
     {
+        // calculate memory requirement for text_model
+        const auto &hparams = text_model.hparams;
+
+        const int n_vocab = hparams.n_vocab;
+        const int num_positions = hparams.num_positions;
+        const int hidden_size = hparams.hidden_size;
+        const int n_layer = hparams.n_layer;
+        const int n_intermediate = hparams.n_intermediate;
+        const int projection_dim = hparams.projection_dim;
+
+        // Calculate size requirements
+
+        model_mem_req += hidden_size * n_vocab * ggml_type_sizef(wtype);       // token_embeddings
+        model_mem_req += hidden_size * num_positions * ggml_type_sizef(wtype); // position_embeddings
+
+        model_mem_req += 4 * n_layer * (hidden_size * ggml_type_sizef(GGML_TYPE_F32)); // ln_1_* and ln_2_*
+
+        model_mem_req += 4 * n_layer * (hidden_size * hidden_size * ggml_type_sizef(wtype));    // kqvo weights
+        model_mem_req += 4 * n_layer * (hidden_size * ggml_type_sizef(GGML_TYPE_F32));          // kqvo bias
+        model_mem_req += 2 * n_layer * (hidden_size * n_intermediate * ggml_type_sizef(wtype)); // ff_*_w
+        model_mem_req += n_layer * (n_intermediate * ggml_type_sizef(GGML_TYPE_F32));           // ff_i_b
+        model_mem_req += n_layer * (hidden_size * ggml_type_sizef(GGML_TYPE_F32));              // ff_o_b
+
+        model_mem_req += 2 * hidden_size * ggml_type_sizef(GGML_TYPE_F32);          // post_ln_*
+        model_mem_req += 2 * hidden_size * projection_dim * ggml_type_sizef(wtype); // projection
+
+        model_mem_req += (5 + 16 * n_layer) * 256; // object overhead
+    }
+
+    {
+        // calculate memory requirement for vision_model
         const auto &hparams = vision_model.hparams;
 
         const int image_size = hparams.image_size;
@@ -320,12 +381,14 @@ struct clip_ctx *clip_model_load(const char *fname)
         model_mem_req += 2 * n_layer * (hidden_size * n_intermediate * ggml_type_sizef(wtype)); // ff_*_w
         model_mem_req += n_layer * (n_intermediate * ggml_type_sizef(GGML_TYPE_F32));           // ff_i_b
         model_mem_req += n_layer * (hidden_size * ggml_type_sizef(GGML_TYPE_F32));              // ff_o_b
-        model_mem_req += 2 * hidden_size * projection_dim * ggml_type_sizef(wtype);             // projection
+
+        model_mem_req += 2 * hidden_size * ggml_type_sizef(GGML_TYPE_F32);          // post_ln_*
+        model_mem_req += 2 * hidden_size * projection_dim * ggml_type_sizef(wtype); // projection
 
         model_mem_req += (5 + 16 * n_layer) * 256; // object overhead
-
-        printf("%s: ggml ctx size = %6.2f MB\n", __func__, model_mem_req / (1024.0 * 1024.0));
     }
+
+    printf("%s: ggml ctx size = %6.2f MB\n", __func__, model_mem_req / (1024.0 * 1024.0));
 
     // create the ggml context
     {
@@ -335,8 +398,8 @@ struct clip_ctx *clip_model_load(const char *fname)
             .no_alloc = false,
         };
 
-        vision_model.ctx = ggml_init(params);
-        if (!vision_model.ctx)
+        new_clip->ctx = ggml_init(params);
+        if (!new_clip->ctx)
         {
             fprintf(stderr, "%s: ggml_init() failed\n", __func__);
             clip_free(new_clip);
@@ -344,7 +407,84 @@ struct clip_ctx *clip_model_load(const char *fname)
         }
     }
 
-    // prepare memory for the weights
+    // prepare memory for the text_model weights
+    {
+        const auto &hparams = text_model.hparams;
+
+        const int n_vocab = hparams.n_vocab;
+        const int num_positions = hparams.num_positions;
+        const int hidden_size = hparams.hidden_size;
+        const int n_layer = hparams.n_layer;
+        const int n_intermediate = hparams.n_intermediate;
+        const int projection_dim = hparams.projection_dim;
+
+        text_model.layers.resize(n_layer);
+
+        text_model.token_embeddings = ggml_new_tensor_2d(ctx, wtype, hidden_size, n_vocab);
+        text_model.position_embeddings = ggml_new_tensor_2d(ctx, wtype, hidden_size, num_positions);
+
+        // map by name
+        text_model.tensors["text_model.embeddings.token_embedding.weight"] = text_model.token_embeddings;
+        text_model.tensors["text_model.embeddings.position_embedding.weight"] = text_model.position_embeddings;
+
+        for (int i = 0; i < n_layer; ++i)
+        {
+            auto &layer = text_model.layers[i];
+
+            layer.ln_1_w = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, hidden_size);
+            layer.ln_1_b = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, hidden_size);
+            layer.ln_2_w = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, hidden_size);
+            layer.ln_2_b = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, hidden_size);
+
+            layer.q_w = ggml_new_tensor_2d(ctx, wtype, hidden_size, hidden_size);
+            layer.q_b = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, hidden_size);
+            layer.k_w = ggml_new_tensor_2d(ctx, wtype, hidden_size, hidden_size);
+            layer.k_b = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, hidden_size);
+            layer.v_w = ggml_new_tensor_2d(ctx, wtype, hidden_size, hidden_size);
+            layer.v_b = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, hidden_size);
+            layer.o_w = ggml_new_tensor_2d(ctx, wtype, hidden_size, hidden_size);
+            layer.o_b = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, hidden_size);
+
+            layer.ff_i_w = ggml_new_tensor_2d(ctx, wtype, hidden_size, n_intermediate);
+            layer.ff_i_b = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, n_intermediate);
+
+            layer.ff_o_w = ggml_new_tensor_2d(ctx, wtype, n_intermediate, hidden_size);
+            layer.ff_o_b = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, hidden_size);
+
+            // map by name
+
+            text_model.tensors["text_model.encoder.layers." + std::to_string(i) + ".self_attn.k_proj.weight"] = layer.k_w;
+            text_model.tensors["text_model.encoder.layers." + std::to_string(i) + ".self_attn.k_proj.bias"] = layer.k_b;
+            text_model.tensors["text_model.encoder.layers." + std::to_string(i) + ".self_attn.v_proj.weight"] = layer.v_w;
+            text_model.tensors["text_model.encoder.layers." + std::to_string(i) + ".self_attn.v_proj.bias"] = layer.v_b;
+            text_model.tensors["text_model.encoder.layers." + std::to_string(i) + ".self_attn.q_proj.weight"] = layer.q_w;
+            text_model.tensors["text_model.encoder.layers." + std::to_string(i) + ".self_attn.q_proj.bias"] = layer.q_b;
+            text_model.tensors["text_model.encoder.layers." + std::to_string(i) + ".self_attn.out_proj.weight"] = layer.o_w;
+            text_model.tensors["text_model.encoder.layers." + std::to_string(i) + ".self_attn.out_proj.bias"] = layer.o_b;
+
+            text_model.tensors["text_model.encoder.layers." + std::to_string(i) + ".layer_norm1.weight"] = layer.ln_1_w;
+            text_model.tensors["text_model.encoder.layers." + std::to_string(i) + ".layer_norm1.bias"] = layer.ln_1_b;
+
+            text_model.tensors["text_model.encoder.layers." + std::to_string(i) + ".mlp.fc1.weight"] = layer.ff_i_w;
+            text_model.tensors["text_model.encoder.layers." + std::to_string(i) + ".mlp.fc1.bias"] = layer.ff_i_b;
+            text_model.tensors["text_model.encoder.layers." + std::to_string(i) + ".mlp.fc2.weight"] = layer.ff_o_w;
+            text_model.tensors["text_model.encoder.layers." + std::to_string(i) + ".mlp.fc2.bias"] = layer.ff_o_b;
+
+            text_model.tensors["text_model.encoder.layers." + std::to_string(i) + ".layer_norm2.weight"] = layer.ln_2_w;
+            text_model.tensors["text_model.encoder.layers." + std::to_string(i) + ".layer_norm2.bias"] = layer.ln_2_b;
+        }
+
+        text_model.post_ln_w = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, hidden_size);
+        text_model.post_ln_b = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, hidden_size);
+        text_model.projection = ggml_new_tensor_2d(ctx, wtype, hidden_size, projection_dim);
+
+        // map by name
+        text_model.tensors["text_model.final_layer_norm.weight"] = text_model.post_ln_w;
+        text_model.tensors["text_model.final_layer_norm.bias"] = text_model.post_ln_b;
+        text_model.tensors["text_projection.weight"] = text_model.projection;
+    }
+
+    // prepare memory for the vision_model weights
     {
         const auto &hparams = vision_model.hparams;
 
@@ -465,14 +605,22 @@ struct clip_ctx *clip_model_load(const char *fname)
             std::string name(length, 0);
             fin.read(&name[0], length);
 
-            if (vision_model.tensors.find(name.data()) == vision_model.tensors.end())
+            struct ggml_tensor *tensor;
+            if (text_model.tensors.find(name.data()) != text_model.tensors.end())
+            {
+                tensor = text_model.tensors[name.data()];
+            }
+            else if (vision_model.tensors.find(name.data()) != vision_model.tensors.end())
+            {
+                tensor = vision_model.tensors[name.data()];
+            }
+            else
             {
                 fprintf(stderr, "%s: unknown tensor '%s' in model file\n", __func__, name.data());
                 clip_free(new_clip);
                 return nullptr;
             }
 
-            auto tensor = vision_model.tensors[name.data()];
             if (ggml_nelements(tensor) != nelements)
             {
                 fprintf(stderr, "%s: tensor '%s' has wrong size in model file\n", __func__, name.data());
@@ -556,20 +704,242 @@ struct clip_ctx *clip_model_load(const char *fname)
         // TODO: We set the initial buffer size to 16MB and hope it's enough. Maybe there is a better way to do this?
         new_clip->buf_compute.resize(96 * 1024 * 1024);
     }
+    printf("%s: model loadded\n", __func__);
 
     return new_clip;
 }
 
 void clip_free(clip_ctx *ctx)
 {
-    ggml_free(ctx->vision_model.ctx);
+    ggml_free(ctx->ctx);
     delete ctx;
+}
+
+bool clip_text_encode(
+    const clip_ctx *ctx,
+    int n_threads,
+    const clip_vocab_id *tokens,
+    const int N,
+    float *vec)
+{
+    const auto &model = ctx->text_model;
+    const auto &hparams = model.hparams;
+
+    const int n_vocab = hparams.n_vocab;
+    const int num_positions = hparams.num_positions;
+    const int hidden_size = hparams.hidden_size;
+    const int n_head = hparams.n_head;
+    const int d_head = hidden_size / n_head;
+    const int n_layer = hparams.n_layer;
+    const int n_intermediate = hparams.n_intermediate;
+    const int projection_dim = hparams.projection_dim;
+
+    auto &buf_compute = ctx->buf_compute;
+
+    struct ggml_init_params params = {
+        .mem_size = buf_compute.size,
+        .mem_buffer = buf_compute.data,
+        .no_alloc = false,
+    };
+
+    struct ggml_context *ctx0 = ggml_init(params);
+    struct ggml_cgraph gf = {};
+    gf.n_threads = n_threads;
+
+    struct ggml_tensor *input_ids = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, N);
+    memcpy(input_ids->data, tokens, N * ggml_element_size(input_ids));
+
+    struct ggml_tensor *positions = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, N);
+    for (int i = 0; i < N; i++)
+    {
+        ggml_set_i32_1d(positions, i, i);
+    }
+
+    struct ggml_tensor *embeddings = ggml_get_rows(ctx0, model.token_embeddings, input_ids);
+
+    embeddings = ggml_add(ctx0,
+                          ggml_get_rows(ctx0, model.position_embeddings, positions),
+                          embeddings);
+
+    // loop over layers
+    for (int il = 0; il < n_layer; il++)
+    {
+        struct ggml_tensor *cur = embeddings; // embeddings = residual, cur = hidden_states
+
+        // layernorm1
+        {
+            cur = ggml_norm(ctx0, cur);
+
+            cur = ggml_add(ctx0,
+                           ggml_mul(ctx0,
+                                    ggml_repeat(ctx0, model.layers[il].ln_1_w, cur),
+                                    cur),
+                           ggml_repeat(ctx0, model.layers[il].ln_1_b, cur));
+        }
+
+        // self-attention
+        {
+            struct ggml_tensor *Qcur = cur;
+            Qcur = ggml_reshape_3d(ctx0,
+                                   ggml_add(ctx0, ggml_repeat(ctx0, model.layers[il].q_b, Qcur),
+                                            ggml_mul_mat(ctx0, model.layers[il].q_w, Qcur)),
+                                   d_head, n_head, N);
+            struct ggml_tensor *Q = ggml_permute(ctx0, Qcur, 0, 2, 1, 3);
+
+            struct ggml_tensor *Kcur = cur;
+            Kcur = ggml_reshape_3d(ctx0,
+                                   ggml_add(ctx0, ggml_repeat(ctx0, model.layers[il].k_b, Kcur),
+                                            ggml_mul_mat(ctx0, model.layers[il].k_w, Kcur)),
+                                   d_head, n_head, N);
+            struct ggml_tensor *K = ggml_permute(ctx0, Kcur, 0, 2, 1, 3);
+
+            struct ggml_tensor *Vcur = cur;
+            Vcur = ggml_reshape_3d(ctx0,
+                                   ggml_add(ctx0, ggml_repeat(ctx0, model.layers[il].v_b, Vcur),
+                                            ggml_mul_mat(ctx0, model.layers[il].v_w, Vcur)),
+                                   d_head, n_head, N);
+            struct ggml_tensor *V = ggml_permute(ctx0, Vcur, 0, 2, 1, 3);
+
+            struct ggml_tensor *KQ = ggml_mul_mat(ctx0, K, Q);
+
+            KQ = ggml_scale_inplace(ctx0, KQ, ggml_new_f32(ctx0, 1.0f / sqrt(float(d_head))));
+
+            KQ = ggml_diag_mask_inf_inplace(ctx0, KQ, 0);
+            KQ = ggml_soft_max_inplace(ctx0, KQ);
+
+            V = ggml_cont(ctx0, ggml_transpose(ctx0, V));
+            struct ggml_tensor *KQV = ggml_mul_mat(ctx0, V, KQ);
+            KQV = ggml_permute(ctx0, KQV, 0, 2, 1, 3);
+
+            cur = ggml_cpy(ctx0, KQV, ggml_new_tensor_2d(ctx0, GGML_TYPE_F32, hidden_size, N));
+        }
+
+        // attention output
+        cur = ggml_add(ctx0,
+                       ggml_repeat(ctx0, model.layers[il].o_b, cur),
+                       ggml_mul_mat(ctx0, model.layers[il].o_w, cur));
+
+        // re-add the layer input, e.g., residual
+        cur = ggml_add(ctx0, cur, embeddings);
+
+        embeddings = cur; // embeddings = residual, cur = hidden_states
+
+        // layernorm2
+        {
+            cur = ggml_norm(ctx0, cur);
+
+            cur = ggml_add(ctx0,
+                           ggml_mul(ctx0,
+                                    ggml_repeat(ctx0, model.layers[il].ln_2_w, cur),
+                                    cur),
+                           ggml_repeat(ctx0, model.layers[il].ln_2_b, cur));
+        }
+
+        cur = ggml_mul_mat(ctx0, model.layers[il].ff_i_w, cur);
+        cur = ggml_add(ctx0,
+                       ggml_repeat(ctx0, model.layers[il].ff_i_b, cur),
+                       cur);
+        cur = ggml_gelu(ctx0, cur);
+
+        cur = ggml_mul_mat(ctx0, model.layers[il].ff_o_w, cur);
+        cur = ggml_add(ctx0,
+                       ggml_repeat(ctx0, model.layers[il].ff_o_b, cur),
+                       cur);
+
+        // residual 2
+        cur = ggml_add(ctx0, embeddings, cur);
+
+        embeddings = cur;
+    }
+
+    // final -layer_norm
+    {
+        embeddings = ggml_norm(ctx0, embeddings);
+
+        embeddings = ggml_add(ctx0,
+                              ggml_mul(ctx0,
+                                       ggml_repeat(ctx0, model.post_ln_w, embeddings),
+                                       embeddings),
+                              ggml_repeat(ctx0, model.post_ln_b, embeddings));
+    }
+
+    // get the output of eot token, e.g., last index
+    struct ggml_tensor *eot = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, 1);
+    ggml_set_i32_1d(eot, 0, N - 1);
+    embeddings = ggml_get_rows(ctx0, embeddings, eot);
+
+    // text projection
+    embeddings = ggml_mul_mat(ctx0, model.projection, embeddings);
+
+    ggml_set_name(embeddings, "check");
+
+    // run the computation
+    ggml_build_forward_expand(&gf, embeddings);
+    ggml_graph_compute(ctx0, &gf);
+
+    // print
+    {
+        auto print_t_f32 = [&](struct ggml_tensor *t)
+        {
+            float *data = (float *)t->data;
+            printf("dtype: f32, dims: %jd %jd %jd %jd, nb: %jd %jd %jd %jd\n", t->ne[0], t->ne[1], t->ne[2], t->ne[3], t->nb[0], t->nb[1], t->nb[2], t->nb[3]);
+            printf("data: ");
+            for (int i = 0; i < std::min((int)t->ne[0], 20); i++)
+            {
+                printf("%f ", data[i]);
+            }
+
+            // printf("\n\n");
+            double sum = 0.0;
+            for (int i = 0; i < ggml_nelements(t); i++)
+            {
+                sum += data[i];
+            }
+            printf("sum:  %f\n", sum);
+        };
+
+        auto print_t_f16 = [&](struct ggml_tensor *t)
+        {
+            ggml_fp16_t *data = (ggml_fp16_t *)t->data;
+            printf("dtype: f16, dims: %jd %jd %jd %jd\n", t->ne[0], t->ne[1], t->ne[2], t->ne[3]);
+            printf("data: ");
+            for (int i = 0; i < std::min((int)t->ne[0], 10); i++)
+            {
+                printf("%f ", ggml_fp16_to_fp32(data[i]));
+            }
+            printf("\n\n");
+            double sum = 0.0;
+            for (int i = 0; i < ggml_nelements(t); i++)
+            {
+                sum += ggml_fp16_to_fp32(data[i]);
+            }
+            printf("sum:  %f\n", sum);
+        };
+
+        auto *t = ggml_get_tensor(ctx0, "check");
+        if (t->type == GGML_TYPE_F32)
+        {
+            print_t_f32(t);
+        }
+        else
+        {
+            print_t_f16(t);
+        }
+    }
+
+    printf("used_mem = %zu\n", ggml_used_mem(ctx0));
+
+    memcpy(vec, ggml_get_data_f32(embeddings), sizeof(float) * projection_dim);
+
+    ggml_free(ctx0);
+
+    return true;
 }
 
 bool clip_image_encode(
     const clip_ctx *ctx,
-    const clip_image_f32 &img,
     int n_threads,
+    const clip_image_f32 &img,
     float *vec)
 {
     const auto &model = ctx->vision_model;
@@ -624,9 +994,11 @@ bool clip_image_encode(
     cur = ggml_reshape_2d(ctx0, cur, num_patches, hidden_size);
     cur = ggml_cont(ctx0, ggml_transpose(ctx0, cur));
 
+    // concat class_embeddings and patch_embeddings
     struct ggml_tensor *embeddings = ggml_new_tensor_2d(ctx0, GGML_TYPE_F32, hidden_size, num_positions);
     embeddings = ggml_acc(ctx0, embeddings, model.class_embedding, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], 0);
     embeddings = ggml_acc(ctx0, embeddings, cur, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], ggml_element_size(model.class_embedding) * hidden_size);
+
     embeddings = ggml_add(ctx0, embeddings, model.position_embeddings);
 
     // pre-layernorm
@@ -747,6 +1119,7 @@ bool clip_image_encode(
 
     // final visual projection
     embeddings = ggml_mul_mat(ctx0, model.projection, embeddings);
+
     ggml_set_name(embeddings, "check");
 
     // run the computation
