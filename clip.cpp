@@ -985,7 +985,7 @@ bool clip_image_encode(
                        ggml_repeat(ctx0, model.layers[il].ff_i_b, cur),
                        cur);
 
-        cur = ggml_gelu(ctx0, cur);
+        cur = ggml_quick_gelu(ctx0, cur);
         // ggml_set_name(cur, "check");
 
         cur = ggml_mul_mat(ctx0, model.layers[il].ff_o_w, cur);
