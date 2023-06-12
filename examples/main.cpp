@@ -48,8 +48,8 @@ int main()
     float img_vec[512];
     clip_vocab_id tokens[5] = {49406, 320, 736, 3055, 49407};
 
-    clip_text_encode(ctx, 4, tokens, 5, img_vec);
-    // clip_image_encode(ctx, img1, 4, img_vec);
+    // clip_text_encode(ctx, 4, tokens, 5, img_vec);
+    clip_image_encode(ctx, 4, img1, img_vec);
     write_floats_to_file(img_vec, 512, "/home/yusuf/clip-in-ggml/tests/pred.txt");
 
     printf("done");
