@@ -1,6 +1,3 @@
 build/
 .vscode
-*.bin
-*.jpg
-*.jpeg
-tests/*.txt
+models/*.bin
