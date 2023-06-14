@@ -2,7 +2,7 @@
 CLIP inference in plain C/C++ with no extra dependencies
 
 ## WARNING
-This is not ready for use yet, and it needs some more work to implement tokenization, causal attention and varification of numerical equivalence.
+This is not ready for use yet, and it needs some more work to implement tokenization and bicubic interpolation that matches PIL's implementation numerically.
 
 ## Roadmap
 - [x] Implement Quick GELU (see [PR](https://github.com/ggerganov/ggml/pulls/254)).
