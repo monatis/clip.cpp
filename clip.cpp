@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cmath>
 #include <iostream>
+#include <regex>
 #include <fstream>
 #include "ggml/ggml.h"
 #include "clip.h"
@@ -10,14 +11,93 @@
 #include "stb_image.h"
 #include "stb_image_resize.h"
 
-struct clip_vocab
+std::vector<clip_vocab::id> clip_tokenize(const clip_ctx *ctx, const std::string &text)
 {
-    std::map<std::string, clip_vocab_id> token_to_id;
-    std::map<std::string, clip_vocab_id> subword_token_to_id;
+    std::vector<std::string> words;
 
-    std::map<clip_vocab_id, std::string> _id_to_token;
-    std::map<clip_vocab_id, std::string> _id_to_subword_token;
-};
+    // first split the text into words
+    {
+        std::string str = text;
+        std::string pat = R"('s|'t|'re|'ve|'m|'ll|'d| ?[[:alpha:]]+| ?[[:digit:]]+| ?[^\s[:alpha:][:digit:]]+|\s+(?!\S)|\s+)";
+
+        // Generate the subpattern from the special_tokens vector if it's not empty
+        if (!ctx->vocab.special_tokens.empty())
+        {
+            std::string special_tokens_subpattern;
+            for (const auto &token : ctx->vocab.special_tokens)
+            {
+                if (!special_tokens_subpattern.empty())
+                {
+                    special_tokens_subpattern += "|";
+                }
+                special_tokens_subpattern += token;
+            }
+
+            // Modify the regex pattern with the generated special tokens subpattern
+            pat = special_tokens_subpattern + "|" + pat;
+        }
+
+        std::regex re(pat);
+        std::smatch m;
+
+        while (std::regex_search(str, m, re))
+        {
+            for (auto x : m)
+            {
+                words.push_back(x);
+            }
+            str = m.suffix();
+        }
+    }
+
+    std::vector<clip_vocab::id> tokens;
+    tokens.push_back(49406); // startoftext
+
+    for (const auto &word : words)
+    {
+        // feel lucky? let's try if it's a full word
+        std::string full_word = "";
+        if (word.starts_with(" "))
+        {
+            full_word += word.substr(1);
+        }
+        else
+        {
+            full_word += word;
+        }
+        full_word += "</w>";
+        auto wit = ctx->vocab.token_to_id.find(full_word);
+        if (wit != ctx->vocab.token_to_id.end())
+        {
+            tokens.push_back(wit->second);
+            continue;
+        }
+
+        for (int i = 0; i < word.size();)
+        {
+            for (int j = word.size() - 1; j >= i; j--)
+            {
+                auto cand = word.substr(i, j - i + 1);
+                auto it = ctx->vocab.token_to_id.find(cand);
+                if (it != ctx->vocab.token_to_id.end())
+                { // word.substr(i, j-i+1) in vocab
+                    tokens.push_back(it->second);
+                    i = j + 1;
+                    break;
+                }
+                else if (j == i)
+                { // word.substr(i, 1) has no matching
+                    fprintf(stderr, "%s: unknown token '%s'\n", __func__, word.substr(i, 1).data());
+                    i++;
+                }
+            }
+        }
+    }
+
+    tokens.push_back(49407); // endoftext
+
+    return tokens;
+}
 
 bool clip_image_load_from_file(const std::string &fname, clip_image_u8 &img)
 {
@@ -134,6 +214,7 @@ struct clip_ctx *clip_model_load(const char *fname)
     clip_ctx *new_clip = new clip_ctx;
     clip_text_model &text_model = new_clip->text_model;
     clip_vision_model &vision_model = new_clip->vision_model;
+    clip_vocab &vocab = new_clip->vocab;
 
     // load hparams for text
     {
@@ -175,6 +256,35 @@ struct clip_ctx *clip_model_load(const char *fname)
         printf("%s: v_n_head  = %d\n", __func__, hparams.n_head);
         printf("%s: v_n_layer = %d\n", __func__, hparams.n_layer);
         printf("%s: ftype     = %d\n", __func__, new_clip->ftype);
+    }
+
+    // load vocab
+    {
+        int32_t n_vocab = 0;
+        fin.read((char *)&n_vocab, sizeof(n_vocab));
+
+        if (n_vocab != new_clip->text_model.hparams.n_vocab)
+        {
+            fprintf(stderr, "%s: invalid model file '%s' (bad vocab size %d != %d)\n",
+                    __func__, fname, n_vocab, new_clip->text_model.hparams.n_vocab);
+            return nullptr;
+        }
+
+        std::string word;
+        std::vector<char> buf(128);
+
+        for (int i = 0; i < n_vocab; i++)
+        {
+            uint32_t len;
+            fin.read((char *)&len, sizeof(len));
+
+            buf.resize(len);
+            fin.read((char *)buf.data(), len);
+            word.assign(buf.data(), len);
+
+            new_clip->vocab.token_to_id[word] = i;
+            new_clip->vocab.id_to_token[i] = word;
+        }
     }
 
     // for the big tensors, we have the option to store the data in 16-bit floats or quantized
@@ -601,12 +711,12 @@ void clip_free(clip_ctx *ctx)
 bool clip_text_encode(
     const clip_ctx *ctx,
     int n_threads,
-    const clip_vocab_id *tokens,
-    const int N,
+    const std::vector<clip_vocab::id> &tokens,
     float *vec)
 {
     const auto &model = ctx->text_model;
     const auto &hparams = model.hparams;
+    const int N = tokens.size();
 
     const int n_vocab = hparams.n_vocab;
     const int num_positions = hparams.num_positions;
@@ -630,7 +740,7 @@ bool clip_text_encode(
     gf.n_threads = n_threads;
 
     struct ggml_tensor *input_ids = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, N);
-    memcpy(input_ids->data, tokens, N * ggml_element_size(input_ids));
+    memcpy(input_ids->data, tokens.data(), N * ggml_element_size(input_ids));
 
     struct ggml_tensor *positions = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, N);
     for (int i = 0; i < N; i++)

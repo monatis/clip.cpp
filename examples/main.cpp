@@ -45,13 +45,14 @@ int main()
     fprintf(stderr, "%s: preprocessed image (%d x %d)\n", __func__, img1.nx, img1.ny);
 
     auto ctx = clip_model_load("/home/yusuf/clip-vit-base-patch32/ggml-model-f16.bin");
-    float img_vec[512];
-    clip_vocab_id tokens[5] = {49406, 320, 736, 3055, 49407};
+    float vec[512];
+    auto tokens = clip_tokenize(ctx, "a red apple");
+    clip_text_encode(ctx, 4, tokens, vec);
 
-    clip_text_encode(ctx, 4, tokens, 5, img_vec);
-    // clip_image_encode(ctx, 4, img1, img_vec);
-    write_floats_to_file(img_vec, 512, "/home/yusuf/clip-in-ggml/tests/pred.txt");
+    // clip_image_encode(ctx, 4, img1, vec);
+    write_floats_to_file(vec, 512, "/home/yusuf/clip-in-ggml/tests/pred.txt");
 
-    printf("done");
+    printf("done\n");
+
     return 0;
 }

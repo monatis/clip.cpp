@@ -50,6 +50,44 @@ struct clip_vision_hparams
 
 typedef int32_t clip_vocab_id;
 
+//
+// Vocab utils
+//
+
+std::string trim(const std::string &s);
+
+std::string replace(
+    const std::string &s,
+    const std::string &from,
+    const std::string &to);
+
+struct clip_vocab
+{
+    using id = int32_t;
+    using token = std::string;
+
+    std::map<token, id> token_to_id;
+    std::map<id, token> id_to_token;
+    std::vector<std::string> special_tokens;
+
+    void add_special_token(const std::string &token);
+};
+
+std::string convert_to_utf8(const std::wstring &input);
+
+std::wstring convert_to_wstring(const std::string &input);
+
+// split text into tokens
+//
+// ref: https://github.com/openai/gpt-2/blob/a74da5d99abaaba920de8131d64da2862a8f213b/src/encoder.py#L53
+//
+// Regex (Python):
+// r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+//
+// Regex (C++):
+// R"('s|'t|'re|'ve|'m|'ll|'d| ?[[:alpha:]]+| ?[[:digit:]]+| ?[^\s[:alpha:][:digit:]]+|\s+(?!\S)|\s+)"
+//
+
 struct clip_layer
 {
     // attention
@@ -94,10 +132,6 @@ struct clip_text_model
 
     struct ggml_tensor *projection;
 
-    // key + value memory
-    // struct ggml_tensor * memory_k;
-    // struct ggml_tensor * memory_v;
-
     std::map<std::string, struct ggml_tensor *> tensors;
 };
 
@@ -119,10 +153,6 @@ struct clip_vision_model
     struct ggml_tensor *post_ln_b;
 
     struct ggml_tensor *projection;
-
-    // key + value memory
-    // struct ggml_tensor * memory_k;
-    // struct ggml_tensor * memory_v;
 
     std::map<std::string, struct ggml_tensor *> tensors;
 };
@@ -152,6 +182,7 @@ struct clip_ctx
 {
     clip_text_model text_model;
     clip_vision_model vision_model;
+    clip_vocab vocab;
     int32_t ftype = 1;
     ggml_context *ctx;
     clip_buffer buf_compute;
@@ -178,16 +209,16 @@ struct clip_image_f32
     std::vector<float> data;
 };
 
-bool clip_image_load_from_file(const std::string &fname, clip_image_u8 &img);
+std::vector<clip_vocab::id> clip_tokenize(const clip_ctx *ctx, const std::string &text);
 
+bool clip_image_load_from_file(const std::string &fname, clip_image_u8 &img);
 bool clip_image_preprocess(const clip_image_u8 *img, clip_image_f32 *res);
 bool clip_image_preprocess_bicubic(const clip_image_u8 *img, clip_image_f32 *res);
 
 bool clip_text_encode(
     const clip_ctx *ctx,
     int n_threads,
-    const clip_vocab_id *tokens,
-    const int N,
+    const std::vector<clip_vocab::id> &tokens,
     float *vec);
 
 bool clip_image_encode(
