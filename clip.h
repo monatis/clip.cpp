@@ -154,10 +154,6 @@ struct clip_ctx
     clip_vision_model vision_model;
     int32_t ftype = 1;
     ggml_context *ctx;
-
-    size_t mem_per_token;
-    int64_t mem_per_input;
-    int32_t max_batch_n;
     clip_buffer buf_compute;
 };
 
@@ -184,7 +180,8 @@ struct clip_image_f32
 
 bool clip_image_load_from_file(const std::string &fname, clip_image_u8 &img);
 
-bool clip_image_preprocess(const clip_image_u8 &img, clip_image_f32 &res);
+bool clip_image_preprocess(const clip_image_u8 *img, clip_image_f32 *res);
+bool clip_image_preprocess_bicubic(const clip_image_u8 *img, clip_image_f32 *res);
 
 bool clip_text_encode(
     const clip_ctx *ctx,

@@ -26,7 +26,7 @@ int main()
 
     // load the image
     clip_image_u8 img0;
-    if (!clip_image_load_from_file("/home/yusuf/clip-in-ggml/tests/white.jpg", img0))
+    if (!clip_image_load_from_file("/mnt/c/users/yusuf/coding/banana-tests/boxing.jpeg", img0))
     {
         fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, "mysn.jpeg");
         return 1;
@@ -36,7 +36,7 @@ int main()
 
     // preprocess to f32
     clip_image_f32 img1;
-    if (!clip_image_preprocess(img0, img1))
+    if (!clip_image_preprocess(&img0, &img1))
     {
         fprintf(stderr, "%s: failed to preprocess image\n", __func__);
         return 1;
@@ -48,8 +48,8 @@ int main()
     float img_vec[512];
     clip_vocab_id tokens[5] = {49406, 320, 736, 3055, 49407};
 
-    // clip_text_encode(ctx, 4, tokens, 5, img_vec);
-    clip_image_encode(ctx, 4, img1, img_vec);
+    clip_text_encode(ctx, 4, tokens, 5, img_vec);
+    // clip_image_encode(ctx, 4, img1, img_vec);
     write_floats_to_file(img_vec, 512, "/home/yusuf/clip-in-ggml/tests/pred.txt");
 
     printf("done");

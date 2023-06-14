@@ -6,7 +6,9 @@
 #include "clip.h"
 
 #define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image.h"
+#include "stb_image_resize.h"
 
 struct clip_vocab
 {
@@ -39,17 +41,17 @@ bool clip_image_load_from_file(const std::string &fname, clip_image_u8 &img)
 
 // normalize: x = (x - mean) / std
 // TODO: implement bicubic interpolation instead of linear.
-bool clip_image_preprocess(const clip_image_u8 &img, clip_image_f32 &res)
+bool clip_image_preprocess(const clip_image_u8 *img, clip_image_f32 *res)
 {
-    const int nx = img.nx;
-    const int ny = img.ny;
+    const int nx = img->nx;
+    const int ny = img->ny;
 
     const int nx2 = 224;
     const int ny2 = 224;
 
-    res.nx = nx2;
-    res.ny = ny2;
-    res.data.resize(3 * nx2 * ny2);
+    res->nx = nx2;
+    res->ny = ny2;
+    res->data.resize(3 * nx2 * ny2);
 
     const float scale = std::max(nx, ny) / 224.0f;
 
@@ -58,7 +60,7 @@ bool clip_image_preprocess(const clip_image_u8 &img, clip_image_f32 &res)
     const int nx3 = int(nx / scale + 0.5f);
     const int ny3 = int(ny / scale + 0.5f);
 
-    const float m3[3] = {0.45145466f, 0.4578275f, 0.40821073f};
+    const float m3[3] = {0.48145466f, 0.4578275f, 0.40821073f};
     const float s3[3] = {0.26862954f, 0.26130258f, 0.27577711f};
 
     for (int y = 0; y < ny3; y++)
@@ -85,10 +87,10 @@ bool clip_image_preprocess(const clip_image_u8 &img, clip_image_f32 &res)
                 const int j10 = 3 * (y1 * nx + x0) + c;
                 const int j11 = 3 * (y1 * nx + x1) + c;
 
-                const float v00 = img.data[j00];
-                const float v01 = img.data[j01];
-                const float v10 = img.data[j10];
-                const float v11 = img.data[j11];
+                const float v00 = img->data[j00];
+                const float v01 = img->data[j01];
+                const float v10 = img->data[j10];
+                const float v11 = img->data[j11];
 
                 const float v0 = v00 * (1.0f - dx) + v01 * dx;
                 const float v1 = v10 * (1.0f - dx) + v11 * dx;
@@ -99,7 +101,7 @@ bool clip_image_preprocess(const clip_image_u8 &img, clip_image_f32 &res)
 
                 const int i = 3 * (y * nx3 + x) + c;
 
-                res.data[i] = ((float(v2) / 255.0f) - m3[c]) / s3[c];
+                res->data[i] = ((float(v2) / 255.0f) - m3[c]) / s3[c];
             }
         }
     }
@@ -660,39 +662,40 @@ bool clip_text_encode(
 
         // self-attention
         {
-            struct ggml_tensor *Qcur = cur;
-            Qcur = ggml_reshape_3d(ctx0,
-                                   ggml_add(ctx0, ggml_repeat(ctx0, model.layers[il].q_b, Qcur),
-                                            ggml_mul_mat(ctx0, model.layers[il].q_w, Qcur)),
-                                   d_head, n_head, N);
-            struct ggml_tensor *Q = ggml_permute(ctx0, Qcur, 0, 2, 1, 3);
+            struct ggml_tensor *Q = ggml_add(ctx0, ggml_repeat(ctx0, model.layers[il].q_b, cur),
+                                             ggml_mul_mat(ctx0, model.layers[il].q_w, cur));
 
-            struct ggml_tensor *Kcur = cur;
-            Kcur = ggml_reshape_3d(ctx0,
-                                   ggml_add(ctx0, ggml_repeat(ctx0, model.layers[il].k_b, Kcur),
-                                            ggml_mul_mat(ctx0, model.layers[il].k_w, Kcur)),
-                                   d_head, n_head, N);
-            struct ggml_tensor *K = ggml_permute(ctx0, Kcur, 0, 2, 1, 3);
+            Q = ggml_scale_inplace(ctx0, Q, ggml_new_f32(ctx0, 1.0f / sqrt((float)d_head)));
+            Q = ggml_reshape_4d(ctx0, Q, d_head, n_head, N, 1);
+            Q = ggml_cont(ctx0, ggml_permute(ctx0, Q, 0, 2, 1, 3));
+            Q = ggml_reshape_3d(ctx0, Q, d_head, N, n_head);
 
-            struct ggml_tensor *Vcur = cur;
-            Vcur = ggml_reshape_3d(ctx0,
-                                   ggml_add(ctx0, ggml_repeat(ctx0, model.layers[il].v_b, Vcur),
-                                            ggml_mul_mat(ctx0, model.layers[il].v_w, Vcur)),
-                                   d_head, n_head, N);
-            struct ggml_tensor *V = ggml_permute(ctx0, Vcur, 0, 2, 1, 3);
+            struct ggml_tensor *K =
+                ggml_add(ctx0, ggml_repeat(ctx0, model.layers[il].k_b, cur),
+                         ggml_mul_mat(ctx0, model.layers[il].k_w, cur));
+
+            K = ggml_reshape_4d(ctx0, K, d_head, n_head, N, 1);
+            K = ggml_cont(ctx0, ggml_permute(ctx0, K, 0, 2, 1, 3));
+            K = ggml_reshape_3d(ctx0, K, d_head, N, n_head);
+
+            struct ggml_tensor *V =
+                ggml_add(ctx0, ggml_repeat(ctx0, model.layers[il].v_b, cur),
+                         ggml_mul_mat(ctx0, model.layers[il].v_w, cur));
+            V = ggml_reshape_4d(ctx0, V, d_head, n_head, N, 1);
+            V = ggml_cont(ctx0, ggml_permute(ctx0, V, 1, 2, 0, 3));
+            V = ggml_reshape_3d(ctx0, V, N, d_head, n_head);
 
             struct ggml_tensor *KQ = ggml_mul_mat(ctx0, K, Q);
-
-            KQ = ggml_scale_inplace(ctx0, KQ, ggml_new_f32(ctx0, 1.0f / sqrt(float(d_head))));
-
-            KQ = ggml_diag_mask_inf_inplace(ctx0, KQ, 0);
+            KQ = ggml_diag_mask_inf_inplace(ctx0, KQ, 0); // causal masking
             KQ = ggml_soft_max_inplace(ctx0, KQ);
 
-            V = ggml_cont(ctx0, ggml_transpose(ctx0, V));
             struct ggml_tensor *KQV = ggml_mul_mat(ctx0, V, KQ);
-            KQV = ggml_permute(ctx0, KQV, 0, 2, 1, 3);
+            KQV = ggml_reshape_4d(ctx0, KQV, d_head, N, n_head, 1);
+            KQV = ggml_cont(ctx0, ggml_permute(ctx0, KQV, 0, 2, 1, 3));
 
-            cur = ggml_cpy(ctx0, KQV, ggml_new_tensor_2d(ctx0, GGML_TYPE_F32, hidden_size, N));
+            cur = ggml_cpy(ctx0,
+                           KQV,
+                           ggml_new_tensor_2d(ctx0, GGML_TYPE_F32, hidden_size, N));
         }
 
         // attention output
@@ -720,7 +723,8 @@ bool clip_text_encode(
         cur = ggml_add(ctx0,
                        ggml_repeat(ctx0, model.layers[il].ff_i_b, cur),
                        cur);
-        cur = ggml_gelu(ctx0, cur);
+
+        cur = ggml_quick_gelu_inplace(ctx0, cur);
 
         cur = ggml_mul_mat(ctx0, model.layers[il].ff_o_w, cur);
         cur = ggml_add(ctx0,
@@ -729,6 +733,7 @@ bool clip_text_encode(
 
         // residual 2
         cur = ggml_add(ctx0, embeddings, cur);
+        // ggml_set_name(cur, "check");
 
         embeddings = cur;
     }
@@ -745,8 +750,7 @@ bool clip_text_encode(
     }
 
     // get the output of eot token, e.g., last index
-    struct ggml_tensor *eot = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, 1);
-    ggml_set_i32_1d(eot, 0, N - 1);
+    struct ggml_tensor *eot = ggml_new_i32(ctx0, N - 1);
     embeddings = ggml_get_rows(ctx0, embeddings, eot);
 
     // text projection
@@ -850,10 +854,10 @@ bool clip_image_encode(
     gf.n_threads = n_threads;
 
     struct ggml_tensor *inp = ggml_new_tensor_4d(ctx0, GGML_TYPE_F32, image_size, image_size, 3, 1);
-    auto fin = std::ifstream("/home/yusuf/clip-in-ggml/tests/inputs.bin", std::ios::binary);
-    fin.read(reinterpret_cast<char *>(inp->data), ggml_nbytes(inp));
+    // auto fin = std::ifstream("/home/yusuf/clip-in-ggml/tests/inputs.bin", std::ios::binary);
+    // fin.read(reinterpret_cast<char *>(inp->data), ggml_nbytes(inp));
 
-    if (0)
+    // if (0)
     {
         float *data = (float *)ggml_get_data(inp);
 
@@ -926,7 +930,7 @@ bool clip_image_encode(
             struct ggml_tensor *Q = ggml_add(ctx0, ggml_repeat(ctx0, model.layers[il].q_b, cur),
                                              ggml_mul_mat(ctx0, model.layers[il].q_w, cur));
 
-            Q = ggml_scale(ctx0, Q, ggml_new_f32(ctx0, 1.0f / sqrt((float)d_head)));
+            Q = ggml_scale_inplace(ctx0, Q, ggml_new_f32(ctx0, 1.0f / sqrt((float)d_head)));
             Q = ggml_reshape_4d(ctx0, Q, d_head, n_head, num_positions, 1);
             Q = ggml_cont(ctx0, ggml_permute(ctx0, Q, 0, 2, 1, 3));
             Q = ggml_reshape_3d(ctx0, Q, d_head, num_positions, n_head);
@@ -948,7 +952,7 @@ bool clip_image_encode(
 
             struct ggml_tensor *KQ = ggml_mul_mat(ctx0, K, Q);
 
-            KQ = ggml_soft_max(ctx0, KQ);
+            KQ = ggml_soft_max_inplace(ctx0, KQ);
 
             struct ggml_tensor *KQV = ggml_mul_mat(ctx0, V, KQ);
             KQV = ggml_reshape_4d(ctx0, KQV, d_head, num_positions, n_head, 1);
@@ -985,7 +989,7 @@ bool clip_image_encode(
                        ggml_repeat(ctx0, model.layers[il].ff_i_b, cur),
                        cur);
 
-        cur = ggml_quick_gelu(ctx0, cur);
+        cur = ggml_quick_gelu_inplace(ctx0, cur);
         // ggml_set_name(cur, "check");
 
         cur = ggml_mul_mat(ctx0, model.layers[il].ff_o_w, cur);

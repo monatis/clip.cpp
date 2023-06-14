@@ -17,7 +17,7 @@ text_inputs = processor(text="a red apple", return_tensors="pt")
 out = model.get_image_features(**inputs)
 out = out.detach().squeeze().cpu().numpy()
 print("white.jpg output sum:", out.sum())
-out = [str(v) for v in out]
+out = [str(v) for v in out.tolist()]
 
 
 with open(os.path.join(base_dir, "white-ref.txt"), "w") as f:
@@ -36,8 +36,8 @@ cls = [str(v) for v in cls]
 with open(os.path.join(base_dir, "cls-ref.txt"), "w") as f:
     f.write("\n".join(cls))
 
-out = model.get_text_features(**text_inputs).detach().cpu().numpy()
+out = model.get_text_features(**text_inputs)
 print("text output sum:", out.sum())
-out = [str(v) for v in out]
+out = [str(v) for v in out.detach().squeeze().cpu().numpy().tolist()]
 with open(os.path.join(base_dir, "apple-ref.txt"), "w") as f:
     f.write("\n".join(out))
