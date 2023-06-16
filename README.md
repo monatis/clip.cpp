@@ -5,7 +5,7 @@ CLIP inference in plain C/C++ with no extra dependencies
 This is not ready for use yet, and it needs some extra work to prepare examples and do benchmarks.
 
 ## Note about image preprocessing
-PIL uses a two-pass convolutions-based bicubic interpolation in resizing with antialiasing applied. In Pytorch, antialiasing is optional. It needs some extra attention to implement these preprocessing logic that matches their results numerically. However, I found that linear interpolation is also good enough for some initial tests. So let's use it until we craft a proper bicubic interpolation.
+PIL uses a two-pass convolutions-based bicubic interpolation in resizing with antialiasing applied. In Pytorch, antialiasing is optional. It needs some extra attention to implement this preprocessing logic that matches their results numerically. However, I found that linear interpolation is also good enough for both comparison of different embeddings from this implementation and also comparison of an embedding from this implementation and another one from Transformers. So let's use it until we craft a proper bicubic interpolation.
 
 ## Roadmap
 - [x] Implement Quick GELU (see [PR](https://github.com/ggerganov/ggml/pulls/254)).
