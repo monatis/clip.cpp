@@ -2,7 +2,7 @@
 #define CLIP_H
 
 #include <vector>
-#include <string>
+#include <cstring>
 #include <map>
 #include <thread>
 #include "ggml/ggml.h"
@@ -14,15 +14,15 @@
 
 struct app_params
 {
-    int32_t seed = -1; // RNG seed
     int32_t n_threads = std::min(4, (int32_t)std::thread::hardware_concurrency());
-    int32_t port = 8080; // server mode port to bind
 
-    std::string model = "models/ggml-model-q5_1.bin"; // model path
-    std::string image_path;
+    std::string model = "models/ggml-model-f16.bin";
+    std::vector<std::string> image_paths;
+    std::vector<std::string> texts;
 };
 
 bool app_params_parse(int argc, char **argv, app_params &params);
+void print_help(int argc, char **argv, app_params &params);
 
 // default hparams for text_model (ViT-B/32)
 struct clip_text_hparams
@@ -231,6 +231,9 @@ bool image_normalize(clip_image_u8 *img, clip_image_f32 *res);
 
 bool clip_compare_text_and_image(clip_ctx *ctx, int n_threads, std::string &text, clip_image_u8 &image, float *score);
 float clip_similarity_score(float *vec1, float *vec2, int vec_dim);
+
+// utils for debugging
+void write_floats_to_file(float *array, int size, char *filename);
 
 // #ifdef __cplusplus
 // }

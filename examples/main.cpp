@@ -1,67 +1,85 @@
-#include <iostream>
+// Uncomment the line below if you intend to debug embedding output
+// #define CLIP_DEBUG
 #include "clip.h"
 
-void write_floats_to_file(float *array, int size, char *filename)
+int main(int argc, char **argv)
 {
-    // Open the file for writing.
-    FILE *file = fopen(filename, "w");
-    if (file == NULL)
-    {
-        printf("Error opening file: %s\n", filename);
-        return;
-    }
+    // TODO: replace this example with only clip_compare_text_and_image
+    // and demonstrate usage of individual functions in zero-shot labelling and image search examples.
 
-    // Write the float values to the file.
-    for (int i = 0; i < size; i++)
-    {
-        fprintf(file, "%f\n", array[i]);
-    }
-
-    // Close the file.
-    fclose(file);
-}
-
-int main()
-{
     ggml_time_init();
     const int64_t t_main_start_us = ggml_time_us();
 
+    app_params params;
+    if (!app_params_parse(argc, argv, params))
+    {
+        print_help(argc, argv, params);
+        return 1;
+    }
+
     const int64_t t_load_us = ggml_time_us();
 
-    auto ctx = clip_model_load("/home/yusuf/clip-vit-base-patch32/ggml-model-f16.bin");
+    auto ctx = clip_model_load(params.model.c_str());
+    if (!ctx)
+    {
+        printf("%s: Unable  to load model from %s", __func__, params.model.c_str());
+        return 1;
+    }
+
+    const int vec_dim = ctx->vision_model.hparams.projection_dim;
 
     const int64_t t_tokenize_us = ggml_time_us();
-    float vec[512];
 
-    std::string text = "a dog";
+    std::string text = params.texts[0];
     auto tokens = clip_tokenize(ctx, text);
 
-    const int64_t t_encode_us = ggml_time_us();
+    const int64_t t_text_encode_us = ggml_time_us();
 
-    clip_text_encode(ctx, 4, tokens, vec);
+    float txt_vec[vec_dim];
+
+    clip_text_encode(ctx, params.n_threads, tokens, txt_vec);
+
+    const int64_t t_preprocess_us = ggml_time_us();
+
+    // load the image
+    std::string img_path = params.image_paths[0];
+    clip_image_u8 img0;
+    clip_image_f32 img_res;
+    if (!clip_image_load_from_file(img_path, img0))
+    {
+        fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, img_path.c_str());
+        return 1;
+    }
+
+    clip_image_preprocess(&img0, &img_res);
+
+    const int64_t t_image_encode_us = ggml_time_us();
+
+    float img_vec[vec_dim];
+    if (!clip_image_encode(ctx, params.n_threads, img_res, img_vec))
+    {
+        return 1;
+    }
+
+    const int64_t t_similarity_score = ggml_time_us();
+
+    float score = clip_similarity_score(txt_vec, img_vec, vec_dim);
+    printf("%s Similarity score = %2.3f\n", __func__, score);
 
     const int64_t t_main_end_us = ggml_time_us();
 
     printf("\n\nTimings\n");
+    printf("%s: Args parsed in %8.2f ms\n", __func__, (t_load_us - t_main_start_us) / 1000.0);
     printf("%s: Model loaded in %8.2f ms\n", __func__, (t_tokenize_us - t_load_us) / 1000.0);
-    printf("%s: Input tokenized in %8.2f ms\n", __func__, (t_encode_us - t_tokenize_us) / 1000.0);
-    printf("%s: Input encoded in %8.2f ms\n", __func__, (t_main_end_us - t_encode_us) / 1000.0);
+    printf("%s: Input tokenized in %8.2f ms\n", __func__, (t_text_encode_us - t_tokenize_us) / 1000.0);
+    printf("%s: Input encoded in %8.2f ms\n", __func__, (t_preprocess_us - t_text_encode_us) / 1000.0);
+    printf("%s: Image loaded and preprocessed in %8.2f ms\n", __func__, (t_image_encode_us - t_preprocess_us) / 1000.0);
+    printf("%s: Image encoded in %8.2f ms\n", __func__, (t_similarity_score - t_image_encode_us) / 1000.0);
+    printf("%s: Similarity calculated in %8.2f ms\n", __func__, (t_main_end_us - t_similarity_score) / 1000.0);
     printf("%s: Total time: %8.2f ms\n", __func__, (t_main_end_us - t_main_start_us) / 1000.0);
-    // write_floats_to_file(vec, 512, "../tests/pred.txt");
 
-    std::string img_path = "../tests/red_apple.jpg";
-
-    // load the image
-    clip_image_u8 img0;
-    if (!clip_image_load_from_file(img_path, img0))
-    {
-        fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, img_path);
-        return 1;
-    }
-
-    float score;
-    clip_compare_text_and_image(ctx, 4, text, img0, &score);
-    printf("%s Similarity score = %2.3f\n", __func__, score);
+    // the above code can be replaced with a one-liner
+    // clip_compare_text_and_image(ctx, 4, text, img0, &score);
 
     return 0;
 }

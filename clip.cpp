@@ -1,5 +1,6 @@
 #include <cassert>
 #include <cstdlib>
+#include <cstring>
 #include <cmath>
 #include <iostream>
 #include <regex>
@@ -876,7 +877,8 @@ bool clip_text_encode(
     ggml_build_forward_expand(&gf, embeddings);
     ggml_graph_compute(ctx0, &gf);
 
-    // print
+// print
+#ifdef CLIP_DEBUG
     {
         auto print_t_f32 = [&](struct ggml_tensor *t)
         {
@@ -927,7 +929,7 @@ bool clip_text_encode(
     }
 
     printf("used_mem = %zu\n", ggml_used_mem(ctx0));
-
+#endif
     memcpy(vec, ggml_get_data_f32(embeddings), sizeof(float) * projection_dim);
 
     ggml_free(ctx0);
@@ -1148,7 +1150,8 @@ bool clip_image_encode(
     ggml_build_forward_expand(&gf, embeddings);
     ggml_graph_compute(ctx0, &gf);
 
-    // print
+// print
+#ifdef CLIP_DEBUG
     {
         auto print_t_f32 = [&](struct ggml_tensor *t)
         {
@@ -1199,6 +1202,7 @@ bool clip_image_encode(
     }
 
     printf("used_mem = %zu\n", ggml_used_mem(ctx0));
+#endif
 
     memcpy(vec, ggml_get_data_f32(embeddings), sizeof(float) * projection_dim);
 
@@ -1279,4 +1283,73 @@ bool image_normalize(clip_image_u8 *img, clip_image_f32 *res)
         }
     }
     return true;
+}
+
+bool app_params_parse(int argc, char **argv, app_params &params)
+{
+    for (int i = 0; i < argc; i++)
+    {
+        std::string arg = std::string(argv[i]);
+        if (arg == "-m" || arg == "--model")
+        {
+            params.model = argv[++i];
+        }
+        else if (arg == "-t" || arg == "--threads")
+        {
+            params.n_threads = std::stoi(argv[++i]);
+        }
+        else if (arg == "--text")
+        {
+            params.texts.push_back(argv[++i]);
+        }
+        else if (arg == "--image")
+        {
+            params.image_paths.push_back(argv[++i]);
+        }
+        else if (arg == "-h" || arg == "--help")
+        {
+            print_help(argc, argv, params);
+            exit(0);
+        }
+        else
+        {
+            if (i != 0)
+            {
+                printf("%s: unrecognized argument: %s\n", __func__, arg.c_str());
+                return false;
+            }
+        }
+    }
+    return params.image_paths.size() >= 1 && params.texts.size() >= 1;
+}
+
+void print_help(int argc, char **argv, app_params &params)
+{
+    printf("Usage: %s [options]\n", argv[0]);
+    printf("\nOptions:");
+    printf("  -h, --help: Show this message and exit\n");
+    printf("  -m <path>, --model <path>: path to model. Default: %s\n", params.model.c_str());
+    printf("  -t N, --threads N: Number of threads to use for inference. Default: %d\n", params.n_threads);
+    printf("  --text <text>: Text to encode. At least one text should be specified\n");
+    printf("  --image <path>: Path to an image file. At least one image path should be specified\n");
+}
+
+void write_floats_to_file(float *array, int size, char *filename)
+{
+    // Open the file for writing.
+    FILE *file = fopen(filename, "w");
+    if (file == NULL)
+    {
+        printf("Error opening file: %s\n", filename);
+        return;
+    }
+
+    // Write the float values to the file.
+    for (int i = 0; i < size; i++)
+    {
+        fprintf(file, "%f\n", array[i]);
+    }
+
+    // Close the file.
+    fclose(file);
 }
