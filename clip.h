@@ -227,6 +227,11 @@ bool clip_image_encode(
     const clip_image_f32 &img,
     float *vec);
 
+bool image_normalize(clip_image_u8 *img, clip_image_f32 *res);
+
+bool clip_compare_text_and_image(clip_ctx *ctx, int n_threads, std::string &text, clip_image_u8 &image, float *score);
+float clip_similarity_score(float *vec1, float *vec2, int vec_dim);
+
 // #ifdef __cplusplus
 // }
 // #endif

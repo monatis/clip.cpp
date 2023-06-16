@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cstdlib>
 #include <cmath>
 #include <iostream>
 #include <regex>
@@ -7,9 +8,7 @@
 #include "clip.h"
 
 #define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image.h"
-#include "stb_image_resize.h"
 
 std::vector<clip_vocab::id> clip_tokenize(const clip_ctx *ctx, const std::string &text)
 {
@@ -866,6 +865,11 @@ bool clip_text_encode(
     // text projection
     embeddings = ggml_mul_mat(ctx0, model.projection, embeddings);
 
+    // normalize output embeddings
+    ggml_tensor *length = ggml_sqrt(ctx0,
+                                    ggml_sum(ctx0, ggml_sqr(ctx0, embeddings)));
+    embeddings = ggml_scale_inplace(ctx0, embeddings, ggml_div(ctx0, ggml_new_f32(ctx0, 1.0f), length));
+
     ggml_set_name(embeddings, "check");
 
     // run the computation
@@ -1133,6 +1137,11 @@ bool clip_image_encode(
     // final visual projection
     embeddings = ggml_mul_mat(ctx0, model.projection, embeddings);
 
+    // normalize output embeddings
+    ggml_tensor *length = ggml_sqrt(ctx0,
+                                    ggml_sum(ctx0, ggml_sqr(ctx0, embeddings)));
+    embeddings = ggml_scale_inplace(ctx0, embeddings, ggml_div(ctx0, ggml_new_f32(ctx0, 1.0f), length));
+
     ggml_set_name(embeddings, "check");
 
     // run the computation
@@ -1195,5 +1204,79 @@ bool clip_image_encode(
 
     ggml_free(ctx0);
 
+    return true;
+}
+
+float clip_similarity_score(float *vec1, float *vec2, int vec_dim)
+{
+    float dot_product = 0.0;
+    for (int i = 0; i < vec_dim; i++)
+    {
+        dot_product += vec1[i] * vec2[i];
+    }
+
+    // Clamp the dot product to the range [0, 1].
+    float clamped_dot_product = fmin(fmax(dot_product, 0.0), 1.0);
+
+    return clamped_dot_product;
+}
+
+bool clip_compare_text_and_image(clip_ctx *ctx, int n_threads, std::string &text, clip_image_u8 &image, float *score)
+{
+    // prepare image and text vectors
+    const int projection_dim = ctx->vision_model.hparams.projection_dim;
+    float img_vec[projection_dim];
+    float txt_vec[projection_dim];
+
+    // preprocess and encode image
+    clip_image_f32 img_res;
+
+    if (!clip_image_preprocess(&image, &img_res))
+    {
+        return false;
+    }
+
+    if (!clip_image_encode(ctx, n_threads, img_res, img_vec))
+    {
+        return false;
+    }
+
+    // tokenize and encode text
+    auto tokens = clip_tokenize(ctx, text);
+
+    if (!clip_text_encode(ctx, n_threads, tokens, txt_vec))
+    {
+        return false;
+    }
+
+    // compute similarity
+    *score = clip_similarity_score(img_vec, txt_vec, projection_dim);
+
+    return true;
+}
+
+bool image_normalize(clip_image_u8 *img, clip_image_f32 *res)
+{
+    if (img->nx != 224 || img->ny != 224)
+    {
+        printf("%s: long input shape: %d x %s\n", __func__, img->nx, img->ny);
+        return false;
+    }
+
+    const float m3[3] = {0.48145466f, 0.4578275f, 0.40821073f};
+    const float s3[3] = {0.26862954f, 0.26130258f, 0.27577711f};
+
+    for (int y = 0; y < img->ny; y++)
+    {
+        for (int x = 0; x < img->nx; x++)
+        {
+            for (int c = 0; c < 3; c++)
+            {
+                const int i = 3 * (y * img->nx + x) + c;
+                float v = (float)img->data[i];
+                res->data[i] = ((v / 255.0f) - m3[c]) / s3[c];
+            }
+        }
+    }
     return true;
 }
