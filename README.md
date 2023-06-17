@@ -38,11 +38,7 @@ Options:  -h, --help: Show this message and exit
   --image <path>: Path to an image file. At least one image path should be specified                                    
 ```
 ## Roadmap
-- [x] Implement Quick GELU (see [PR](https://github.com/ggerganov/ggml/pulls/254)).
-- [x] Implement causal attention in text model and varify its correctness.
-- [x] Implement tokenization.
-- [x] Return normalize text and image embeddings.
-- [x] Introduce functions to compute similarity.
+- [ ] Support `text-only`, `image-only` and `both` (current) options when exporting, and modify model loading logic accordingly. It might be relevant to use a single modality in certain cases, as in large multimodal models.
 - [ ] Seperate memory buffers for text and image models, as their memory requirements are different.
 - [ ] Implement proper bicubic interpolation (PIL uses a convolutions-based algorithm, and it's more stable than affine transformations).
 - [ ] Do benchmarks and announce the results.
