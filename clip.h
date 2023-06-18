@@ -232,6 +232,7 @@ bool image_normalize(clip_image_u8 *img, clip_image_f32 *res);
 
 bool clip_compare_text_and_image(clip_ctx *ctx, int n_threads, std::string &text, clip_image_u8 &image, float *score);
 float clip_similarity_score(float *vec1, float *vec2, int vec_dim);
+bool softmax_with_sorting(float *arr, int length, float *sorted_scores, int *indices);
 
 // utils for debugging
 void write_floats_to_file(float *array, int size, char *filename);

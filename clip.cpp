@@ -229,7 +229,7 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
         fin.read((char *)&hparams.n_head, sizeof(hparams.n_head));
         fin.read((char *)&hparams.n_layer, sizeof(hparams.n_layer));
 
-        if (verbosity == 2)
+        if (verbosity >= 2)
         {
             printf("%s: n_vocab = %d\n", __func__, hparams.n_vocab);
             printf("%s: num_positions   = %d\n", __func__, hparams.num_positions);
@@ -253,7 +253,7 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
         fin.read((char *)&hparams.n_layer, sizeof(hparams.n_layer));
         fin.read((char *)&new_clip->ftype, sizeof(new_clip->ftype));
 
-        if (verbosity == 2)
+        if (verbosity >= 2)
         {
             printf("%s: image_size = %d\n", __func__, hparams.image_size);
             printf("%s: patch_size   = %d\n", __func__, hparams.patch_size);
@@ -388,7 +388,7 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
         model_mem_req += (5 + 16 * n_layer) * 256; // object overhead
     }
 
-    if (verbosity == 2)
+    if (verbosity >= 2)
     {
         printf("%s: ggml ctx size = %6.2f MB\n", __func__, model_mem_req / (1024.0 * 1024.0));
     }
@@ -701,7 +701,6 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
 
         if (verbosity >= 1)
         {
-
             printf("%s: model size = %8.2f MB / num tensors = %d\n", __func__, total_size / 1024.0 / 1024.0, n_tensors);
         }
     }
@@ -1275,6 +1274,77 @@ bool clip_compare_text_and_image(clip_ctx *ctx, int n_threads, std::string &text
     // compute similarity
     *score = clip_similarity_score(img_vec, txt_vec, projection_dim);
 
+    return true;
+}
+
+typedef struct
+{
+    float score;
+    int index;
+} ScoreIndexPair;
+
+int compare_scores(const void *a, const void *b)
+{
+    const ScoreIndexPair *pair1 = (const ScoreIndexPair *)a;
+    const ScoreIndexPair *pair2 = (const ScoreIndexPair *)b;
+
+    if (pair1->score < pair2->score)
+    {
+        return 1;
+    }
+    else if (pair1->score > pair2->score)
+    {
+        return -1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+bool softmax_with_sorting(float *arr, int length, float *sorted_scores, int *indices)
+{
+    ScoreIndexPair *score_index_pairs = (ScoreIndexPair *)malloc(length * sizeof(ScoreIndexPair));
+    if (!score_index_pairs)
+    {
+        return false;
+    }
+
+    // Calculate softmax probabilities
+    float max_val = arr[0];
+    for (int i = 1; i < length; i++)
+    {
+        if (arr[i] > max_val)
+        {
+            max_val = arr[i];
+        }
+    }
+
+    float sum = 0.0;
+    for (int i = 0; i < length; i++)
+    {
+        arr[i] = exp(arr[i] - max_val);
+        sum += arr[i];
+    }
+
+    for (int i = 0; i < length; i++)
+    {
+        arr[i] /= sum;
+        score_index_pairs[i].score = arr[i];
+        score_index_pairs[i].index = i;
+    }
+
+    // Sort scores in descending order
+    qsort(score_index_pairs, length, sizeof(ScoreIndexPair), compare_scores);
+
+    // Copy sorted scores and indices to the respective arrays
+    for (int i = 0; i < length; i++)
+    {
+        sorted_scores[i] = score_index_pairs[i].score;
+        indices[i] = score_index_pairs[i].index;
+    }
+
+    free(score_index_pairs);
     return true;
 }
 
