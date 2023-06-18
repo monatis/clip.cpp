@@ -1427,7 +1427,7 @@ void print_help(int argc, char **argv, app_params &params)
     printf("  -t N, --threads N: Number of threads to use for inference. Default: %d\n", params.n_threads);
     printf("  --text <text>: Text to encode. At least one text should be specified\n");
     printf("  --image <path>: Path to an image file. At least one image path should be specified\n");
-    printf("-v <level>, --verbose <level>: Control the level of verbosity. 0 = minimum, 2 = maximum. Default: %d\n", params.verbose);
+    printf("  -v <level>, --verbose <level>: Control the level of verbosity. 0 = minimum, 2 = maximum. Default: %d\n", params.verbose);
 }
 
 void write_floats_to_file(float *array, int size, char *filename)
