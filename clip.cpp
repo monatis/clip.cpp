@@ -664,7 +664,7 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
                 break;
             case 3:
                 bpe = ggml_type_size(GGML_TYPE_Q4_1);
-                assert(ne[0] % 64 == 0);
+                // assert(ne[0] % 64 == 0);
                 break;
             default:
             {

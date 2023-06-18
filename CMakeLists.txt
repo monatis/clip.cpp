@@ -212,4 +212,4 @@ if (BUILD_SHARED_LIBS)
 endif()
 
 add_subdirectory(examples)
-# add_subdirectory(models)
+add_subdirectory(models)
