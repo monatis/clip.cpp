@@ -6,7 +6,8 @@
 
 struct my_app_params {
     int32_t n_threads {4};
-    std::string model = "../models/ggml-model-f16.bin";
+    std::string model {"../models/ggml-model-f16.bin"};
+    int32_t verbose {1};
     std::vector<std::string> image_directories;
 };
 
@@ -16,6 +17,7 @@ void my_print_help(int argc, char **argv, my_app_params &params) {
     printf("  -h, --help: Show this message and exit\n");
     printf("  -m <path>, --model <path>: path to model. Default: %s\n", params.model.c_str());
     printf("  -t N, --threads N: Number of threads to use for inference. Default: %d\n", params.n_threads);
+    printf("  -v <level>, --verbose <level>: Control the level of verbosity. 0 = minimum, 2 = maximum. Default: %d\n", params.verbose);
 }
 
 // returns success
@@ -37,6 +39,12 @@ bool my_app_params_parse(int argc, char **argv, my_app_params &params) {
                 break;
             }
             params.n_threads = std::stoi(argv[i]);
+        } else if (arg == "-v" || arg == "--verbose") {
+            if (++i >= argc) {
+                invalid_param = true;
+                break;
+            }
+            params.verbose = std::stoi(argv[i]);
         } else if (arg == "-h" || arg == "--help") {
             my_print_help(argc, argv, params);
             exit(0);
@@ -79,7 +87,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    auto clip_ctx = clip_model_load(params.model.c_str(), 1); // TODO: verbosity as cli arg
+    auto clip_ctx = clip_model_load(params.model.c_str(), params.verbose);
     if (!clip_ctx) {
         printf("%s: Unable  to load model from %s\n", __func__, params.model.c_str());
         return 1;
@@ -111,7 +119,9 @@ int main(int argc, char** argv) {
             }
 
             std::string img_path {dir_entry.path()};
-            fprintf(stdout, "%s: found image file '%s'\n", __func__, img_path.c_str());
+            if (params.verbose >= 1) {
+                fprintf(stdout, "%s: found image file '%s'\n", __func__, img_path.c_str());
+            }
 
             clip_image_u8 img0;
             clip_image_f32 img_res;

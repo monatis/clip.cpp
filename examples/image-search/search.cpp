@@ -5,11 +5,14 @@
 
 struct my_app_params {
     int32_t n_threads {4};
-    std::string model = "../models/ggml-model-f16.bin";
+    std::string model {"../models/ggml-model-f16.bin"};
+    int32_t verbose {1};
     // TODO: index dir
 
     // TODO: search by image
     std::string search_text;
+
+    int32_t n_results {5};
 };
 
 void my_print_help(int argc, char **argv, my_app_params &params) {
@@ -18,6 +21,9 @@ void my_print_help(int argc, char **argv, my_app_params &params) {
     printf("  -h, --help: Show this message and exit\n");
     printf("  -m <path>, --model <path>: path to model. Default: %s\n", params.model.c_str());
     printf("  -t N, --threads N: Number of threads to use for inference. Default: %d\n", params.n_threads);
+    printf("  -v <level>, --verbose <level>: Control the level of verbosity. 0 = minimum, 2 = maximum. Default: %d\n", params.verbose);
+
+    printf("  -n N, --results N: Number of results to display. Default: %d\n", params.n_results);
 }
 
 // returns success
@@ -38,6 +44,18 @@ bool my_app_params_parse(int argc, char **argv, my_app_params &params) {
                 break;
             }
             params.n_threads = std::stoi(argv[i]);
+        } else if (arg == "-n" || arg == "--results") {
+            if (++i >= argc) {
+                invalid_param = true;
+                break;
+            }
+            params.n_results = std::stoi(argv[i]);
+        } else if (arg == "-v" || arg == "--verbose") {
+            if (++i >= argc) {
+                invalid_param = true;
+                break;
+            }
+            params.verbose = std::stoi(argv[i]);
         } else if (arg == "-h" || arg == "--help") {
             my_print_help(argc, argv, params);
             exit(0);
@@ -66,7 +84,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    auto clip_ctx = clip_model_load(params.model.c_str(), 1); // TODO: verbosity via cli arg
+    auto clip_ctx = clip_model_load(params.model.c_str(), params.verbose);
     if (!clip_ctx) {
         printf("%s: Unable to load model from %s\n", __func__, params.model.c_str());
         return 1;
@@ -100,7 +118,7 @@ int main(int argc, char** argv) {
 
     clip_text_encode(clip_ctx, params.n_threads, tokens, txt_vec.data());
 
-    auto results = embd_index.search({txt_vec.data(), txt_vec.size()}, 5);
+    auto results = embd_index.search({txt_vec.data(), txt_vec.size()}, params.n_results);
 
     printf("search results:\n");
     printf("similarity path\n");
