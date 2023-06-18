@@ -205,8 +205,8 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
                 }
             }
 
-            // quantize only >=2D tensors
-            quantize &= (n_dims >= 2);
+            // quantize only 2D tensors
+            quantize &= (n_dims == 2);
 
             if (quantize)
             {
