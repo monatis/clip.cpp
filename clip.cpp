@@ -135,8 +135,6 @@ bool clip_image_preprocess(const clip_image_u8 *img, clip_image_f32 *res)
 
     const float scale = std::max(nx, ny) / 224.0f;
 
-    fprintf(stderr, "%s: scale = %f\n", __func__, scale);
-
     const int nx3 = int(nx / scale + 0.5f);
     const int ny3 = int(ny / scale + 0.5f);
 
@@ -189,9 +187,12 @@ bool clip_image_preprocess(const clip_image_u8 *img, clip_image_f32 *res)
     return true;
 }
 
-struct clip_ctx *clip_model_load(const char *fname)
+struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
 {
-    printf("%s: loading model from '%s' - please wait...", __func__, fname);
+    if (verbosity >= 1)
+    {
+        printf("%s: loading model from '%s' - please wait...", __func__, fname);
+    }
 
     auto fin = std::ifstream(fname, std::ios::binary);
     if (!fin)
@@ -228,12 +229,15 @@ struct clip_ctx *clip_model_load(const char *fname)
         fin.read((char *)&hparams.n_head, sizeof(hparams.n_head));
         fin.read((char *)&hparams.n_layer, sizeof(hparams.n_layer));
 
-        printf("%s: n_vocab = %d\n", __func__, hparams.n_vocab);
-        printf("%s: num_positions   = %d\n", __func__, hparams.num_positions);
-        printf("%s: t_hidden_size  = %d\n", __func__, hparams.hidden_size);
-        printf("%s: t_n_intermediate  = %d\n", __func__, hparams.n_intermediate);
-        printf("%s: t_n_head  = %d\n", __func__, hparams.n_head);
-        printf("%s: t_n_layer = %d\n", __func__, hparams.n_layer);
+        if (verbosity == 2)
+        {
+            printf("%s: n_vocab = %d\n", __func__, hparams.n_vocab);
+            printf("%s: num_positions   = %d\n", __func__, hparams.num_positions);
+            printf("%s: t_hidden_size  = %d\n", __func__, hparams.hidden_size);
+            printf("%s: t_n_intermediate  = %d\n", __func__, hparams.n_intermediate);
+            printf("%s: t_n_head  = %d\n", __func__, hparams.n_head);
+            printf("%s: t_n_layer = %d\n", __func__, hparams.n_layer);
+        }
     }
 
     // load hparams for vision
@@ -249,13 +253,16 @@ struct clip_ctx *clip_model_load(const char *fname)
         fin.read((char *)&hparams.n_layer, sizeof(hparams.n_layer));
         fin.read((char *)&new_clip->ftype, sizeof(new_clip->ftype));
 
-        printf("%s: image_size = %d\n", __func__, hparams.image_size);
-        printf("%s: patch_size   = %d\n", __func__, hparams.patch_size);
-        printf("%s: v_hidden_size  = %d\n", __func__, hparams.hidden_size);
-        printf("%s: v_n_intermediate  = %d\n", __func__, hparams.n_intermediate);
-        printf("%s: v_n_head  = %d\n", __func__, hparams.n_head);
-        printf("%s: v_n_layer = %d\n", __func__, hparams.n_layer);
-        printf("%s: ftype     = %d\n", __func__, new_clip->ftype);
+        if (verbosity == 2)
+        {
+            printf("%s: image_size = %d\n", __func__, hparams.image_size);
+            printf("%s: patch_size   = %d\n", __func__, hparams.patch_size);
+            printf("%s: v_hidden_size  = %d\n", __func__, hparams.hidden_size);
+            printf("%s: v_n_intermediate  = %d\n", __func__, hparams.n_intermediate);
+            printf("%s: v_n_head  = %d\n", __func__, hparams.n_head);
+            printf("%s: v_n_layer = %d\n", __func__, hparams.n_layer);
+            printf("%s: ftype     = %d\n", __func__, new_clip->ftype);
+        }
     }
 
     // load vocab
@@ -381,7 +388,10 @@ struct clip_ctx *clip_model_load(const char *fname)
         model_mem_req += (5 + 16 * n_layer) * 256; // object overhead
     }
 
-    printf("%s: ggml ctx size = %6.2f MB\n", __func__, model_mem_req / (1024.0 * 1024.0));
+    if (verbosity == 2)
+    {
+        printf("%s: ggml ctx size = %6.2f MB\n", __func__, model_mem_req / (1024.0 * 1024.0));
+    }
 
     // create the ggml context
     {
@@ -568,8 +578,6 @@ struct clip_ctx *clip_model_load(const char *fname)
         int n_tensors = 0;
         size_t total_size = 0;
 
-        printf("%s: ", __func__);
-
         while (true)
         {
             int32_t n_dims;
@@ -676,18 +684,26 @@ struct clip_ctx *clip_model_load(const char *fname)
 
             fin.read(reinterpret_cast<char *>(tensor->data), ggml_nbytes(tensor));
 
-            // printf("%42s - [%5d, %5d], type = %6s, %6.2f MB\n", name.data(), ne[0], ne[1], ftype == 0 ? "float" : "f16", ggml_nbytes(tensor)/1024.0/1024.0);
+#ifdef CLIP_DEBUG
+            printf("%42s - [%5d, %5d], type = %6s, %6.2f MB\n", name.data(), ne[0], ne[1], ftype == 0 ? "float" : "f16", ggml_nbytes(tensor) / 1024.0 / 1024.0);
+#endif
+
             total_size += ggml_nbytes(tensor);
-            if (++n_tensors % 8 == 0)
+            if (verbosity >= 1)
             {
-                printf(".");
-                fflush(stdout);
+                if (++n_tensors % 8 == 0)
+                {
+                    printf(".");
+                    fflush(stdout);
+                }
             }
         }
 
-        printf(" done\n");
+        if (verbosity >= 1)
+        {
 
-        printf("%s: model size = %8.2f MB / num tensors = %d\n", __func__, total_size / 1024.0 / 1024.0, n_tensors);
+            printf("%s: model size = %8.2f MB / num tensors = %d\n", __func__, total_size / 1024.0 / 1024.0, n_tensors);
+        }
     }
 
     fin.close();
@@ -697,7 +713,10 @@ struct clip_ctx *clip_model_load(const char *fname)
         // TODO: We set the initial buffer size to 16MB and hope it's enough. Maybe there is a better way to do this?
         new_clip->buf_compute.resize(96 * 1024 * 1024);
     }
-    printf("%s: model loadded\n", __func__);
+    if (verbosity >= 1)
+    {
+        printf("%s: model loadded\n", __func__);
+    }
 
     return new_clip;
 }
@@ -1285,6 +1304,8 @@ bool image_normalize(clip_image_u8 *img, clip_image_f32 *res)
     return true;
 }
 
+// utility functions mainly intended for examples and debugging
+
 bool app_params_parse(int argc, char **argv, app_params &params)
 {
     for (int i = 0; i < argc; i++)
@@ -1305,6 +1326,10 @@ bool app_params_parse(int argc, char **argv, app_params &params)
         else if (arg == "--image")
         {
             params.image_paths.push_back(argv[++i]);
+        }
+        else if (arg == "-v" || arg == "--verbose")
+        {
+            params.verbose = std::stoi(argv[++i]);
         }
         else if (arg == "-h" || arg == "--help")
         {
@@ -1332,6 +1357,7 @@ void print_help(int argc, char **argv, app_params &params)
     printf("  -t N, --threads N: Number of threads to use for inference. Default: %d\n", params.n_threads);
     printf("  --text <text>: Text to encode. At least one text should be specified\n");
     printf("  --image <path>: Path to an image file. At least one image path should be specified\n");
+    printf("-v <level>, --verbose <level>: Control the level of verbosity. 0 = minimum, 2 = maximum. Default: %d\n", params.verbose);
 }
 
 void write_floats_to_file(float *array, int size, char *filename)

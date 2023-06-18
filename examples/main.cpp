@@ -19,7 +19,7 @@ int main(int argc, char **argv)
 
     const int64_t t_load_us = ggml_time_us();
 
-    auto ctx = clip_model_load(params.model.c_str());
+    auto ctx = clip_model_load(params.model.c_str(), params.verbose);
     if (!ctx)
     {
         printf("%s: Unable  to load model from %s", __func__, params.model.c_str());
@@ -68,18 +68,21 @@ int main(int argc, char **argv)
 
     const int64_t t_main_end_us = ggml_time_us();
 
-    printf("\n\nTimings\n");
-    printf("%s: Args parsed in %8.2f ms\n", __func__, (t_load_us - t_main_start_us) / 1000.0);
-    printf("%s: Model loaded in %8.2f ms\n", __func__, (t_tokenize_us - t_load_us) / 1000.0);
-    printf("%s: Input tokenized in %8.2f ms\n", __func__, (t_text_encode_us - t_tokenize_us) / 1000.0);
-    printf("%s: Input encoded in %8.2f ms\n", __func__, (t_preprocess_us - t_text_encode_us) / 1000.0);
-    printf("%s: Image loaded and preprocessed in %8.2f ms\n", __func__, (t_image_encode_us - t_preprocess_us) / 1000.0);
-    printf("%s: Image encoded in %8.2f ms\n", __func__, (t_similarity_score - t_image_encode_us) / 1000.0);
-    printf("%s: Similarity calculated in %8.2f ms\n", __func__, (t_main_end_us - t_similarity_score) / 1000.0);
-    printf("%s: Total time: %8.2f ms\n", __func__, (t_main_end_us - t_main_start_us) / 1000.0);
+    if (params.verbose >= 1)
+    {
+        printf("\n\nTimings\n");
+        printf("%s: Model loaded in %8.2f ms\n", __func__, (t_tokenize_us - t_load_us) / 1000.0);
+        printf("%s: Text tokenized in %8.2f ms\n", __func__, (t_text_encode_us - t_tokenize_us) / 1000.0);
+        printf("%s: Image loaded and preprocessed in %8.2f ms\n", __func__, (t_image_encode_us - t_preprocess_us) / 1000.0);
+        printf("%s: Text encoded in %8.2f ms\n", __func__, (t_preprocess_us - t_text_encode_us) / 1000.0);
+        printf("%s: Image encoded in %8.2f ms\n", __func__, (t_similarity_score - t_image_encode_us) / 1000.0);
+        printf("%s: Total time: %8.2f ms\n", __func__, (t_main_end_us - t_main_start_us) / 1000.0);
+    }
 
     // the above code can be replaced with a one-liner
     // clip_compare_text_and_image(ctx, 4, text, img0, &score);
+
+    clip_free(ctx);
 
     return 0;
 }

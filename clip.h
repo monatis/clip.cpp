@@ -19,6 +19,7 @@ struct app_params
     std::string model = "models/ggml-model-f16.bin";
     std::vector<std::string> image_paths;
     std::vector<std::string> texts;
+    int verbose = 1;
 };
 
 bool app_params_parse(int argc, char **argv, app_params &params);
@@ -157,7 +158,7 @@ struct clip_vision_model
     std::map<std::string, struct ggml_tensor *> tensors;
 };
 
-struct clip_ctx *clip_model_load(const char *fname);
+struct clip_ctx *clip_model_load(const char *fname, const int verbosity);
 
 // Replacement for std::vector<uint8_t> that doesn't require zero-initialization.
 struct clip_buffer
