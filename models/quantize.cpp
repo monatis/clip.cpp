@@ -329,7 +329,7 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
 }
 
 // usage:
-//  ./bin/quantize models/ggml-model-f16.bin models/ggml-model-14_1.bin type
+//  ./bin/quantize models/ggml-model-f16.bin models/ggml-model-q4_1.bin type
 //
 int main(int argc, char **argv)
 {
