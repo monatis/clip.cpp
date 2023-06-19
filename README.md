@@ -1,6 +1,18 @@
 # clip.cpp
 CLIP inference in plain C/C++ with no extra dependencies
 
+## Description
+This is a dependency free implementation of well known [CLIP](https://github.com/openai/clip) by OpenAI,
+thanks to the great work in [GGML](https://github.com/ggerganov/ggml).
+You can use it to work with CLIP models from both OpenAI and LAION
+in Transformers format.
+
+## Motivation
+CLIP is deployed for several task from semantic image search to zero-shot image labeling.
+It's also a part of Stable Diffusion and and the recently emerging field of large multimodal models (LMM).
+This repo is aimed at powering useful applications based on such models on computation- or memory-constraint devices.
+4-bit quantized CLIP is only 85.6 MB!
+
 ## WARNING
 This is not recommended for production yet, and and it needs some extra work to prepare examples and do benchmarks. Also see the node below.
 
@@ -23,7 +35,7 @@ git clone https://huggingface.co/laion/CLIP-ViT-B-32-laion2B-s34B-b79K
 python convert_hf_to_ggml.py CLIP-ViT-B-32-laion2B-s34B-b79K 1
 ```
 
-The output `ggml-model-f16.bin` file is in the same directory.
+The output `ggml-model-f16.bin` file is in the model directory specified in the command above.
 
 ## Building
 ```shell
@@ -40,11 +52,33 @@ cmake -DCLIP_NATIVE=ON ..
 make
 ```
 
-And the main example is in `./bin/main`.
+And the binaries are in the `./bin` directory.
 
 TODO: Detail other build optimizations.
 
+## Quantization
+`clip.cpp` currently supports q4_0 and q4_1 quantization types.
+You can quantize a model in F16 to one of these types by using the `./bin/quantize` binary.
+
+```
+usage: ./bin/quantize /path/to/ggml-model-f16.bin /path/to/ggml-model-quantized.bin type                                 
+  type = 2 - q4_0                                                                                                       
+  type = 3 - q4_1                                                                                                       
+```
+
+For example, you can run the following to convert the model to q4_0:
+
+```shell
+./bin/quantize ./CLIP-ViT-B-32-laion2B-s34B-b79K/ggml-model-f16.bin ./CLIP-ViT-B-32-laion2B-s34B-b79K/ggml-model-q4_0.bin 2
+```
+
+Now you can use `ggml-model-q4_0.bin` just like the model in F16.
+
 ## Usage
+Currently we have two examples: `main` and `zsl`.
+
+1. `main` is just for demonstrating the usage of API and optionally print out some verbose timings. It simply calculates the similarity between one image and one text passed as CLI args.
+
 ```
 Usage: ./bin/main [options]                                                                                             
                                                                                                                         
@@ -53,9 +87,15 @@ Options:  -h, --help: Show this message and exit
   -t N, --threads N: Number of threads to use for inference. Default: 4                                                 
   --text <text>: Text to encode. At least one text should be specified                                                  
   --image <path>: Path to an image file. At least one image path should be specified                                    
+  -v <level>, --verbose <level>: Control the level of verbosity. 0 = minimum, 2 = maximum. Default: 1                    
 ```
-## Roadmap
-- [ ] Support `text-only`, `image-only` and `both` (current) options when exporting, and modify model loading logic accordingly. It might be relevant to use a single modality in certain cases, as in large multimodal models.
+
+2. `zsl` is a zero-shot image labeling example. It labels an image with one of the labels.
+The CLI args are the same as in `main`,
+but you must specify multiple `--text` arguments to specify the labels.
+
+## TODO
+- [ ] Support `text-only`, `image-only` and `both` (current) options when exporting, and modify model loading logic accordingly. It might be relevant to use a single modality in certain cases, as in large multimodal models, or building and/or searching for semantic image search.
 - [ ] Seperate memory buffers for text and image models, as their memory requirements are different.
 - [ ] Implement proper bicubic interpolation (PIL uses a convolutions-based algorithm, and it's more stable than affine transformations).
 - [ ] Do benchmarks and announce the results.

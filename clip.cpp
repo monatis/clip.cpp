@@ -367,9 +367,9 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
 
         // Calculate size requirements
 
-        model_mem_req += hidden_size * ggml_type_sizef(GGML_TYPE_F32);                       // class_embedding
-        model_mem_req += hidden_size * 3 * patch_size * patch_size * ggml_type_sizef(wtype); // patch_embeddings
-        model_mem_req += hidden_size * num_patches * ggml_type_sizef(wtype);                 // position_embeddings
+        model_mem_req += hidden_size * ggml_type_sizef(GGML_TYPE_F32);                               // class_embedding
+        model_mem_req += hidden_size * 3 * patch_size * patch_size * ggml_type_sizef(GGML_TYPE_F16); // patch_embeddings
+        model_mem_req += hidden_size * num_patches * ggml_type_sizef(wtype);                         // position_embeddings
 
         model_mem_req += 2 * hidden_size * ggml_type_sizef(GGML_TYPE_F32); // pre_ln_*
 
@@ -502,7 +502,7 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
         vision_model.layers.resize(n_layer);
 
         vision_model.class_embedding = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, hidden_size);
-        vision_model.patch_embeddings = ggml_new_tensor_4d(ctx, wtype, patch_size, patch_size, 3, hidden_size);
+        vision_model.patch_embeddings = ggml_new_tensor_4d(ctx, GGML_TYPE_F16, patch_size, patch_size, 3, hidden_size);
         vision_model.position_embeddings = ggml_new_tensor_2d(ctx, wtype, hidden_size, num_patches);
 
         vision_model.pre_ln_w = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, hidden_size);
