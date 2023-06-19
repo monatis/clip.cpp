@@ -300,7 +300,7 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
                 total_size_new += data_u8.size();
             }
 
-            total_size_org += nelements * sizeof(float);
+            total_size_org += nelements * sizeof(float) / 2.0;
         }
 
         printf("%s: model size  = %8.2f MB\n", __func__, total_size_org / 1024.0 / 1024.0);
