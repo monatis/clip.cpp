@@ -710,7 +710,7 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
     // Calculate space requirements for setting up context buffers later
     {
         // TODO: We set the initial buffer size to 16MB and hope it's enough. Maybe there is a better way to do this?
-        new_clip->buf_compute.resize(96 * 1024 * 1024);
+        new_clip->buf_compute.resize(96 * 100ul * 1024 * 1024);
     }
     if (verbosity >= 1)
     {
@@ -814,6 +814,7 @@ bool clip_text_encode(
             V = ggml_reshape_3d(ctx0, V, N, d_head, n_head);
 
             struct ggml_tensor *KQ = ggml_mul_mat(ctx0, K, Q);
+            // KQ = ggml_clamp(ctx0, KQ, -10000.0f, 10000.0f);
             KQ = ggml_diag_mask_inf_inplace(ctx0, KQ, 0); // causal masking
             KQ = ggml_soft_max_inplace(ctx0, KQ);
 
@@ -852,7 +853,8 @@ bool clip_text_encode(
                        ggml_repeat(ctx0, model.layers[il].ff_i_b, cur),
                        cur);
 
-        cur = ggml_gelu_quick_inplace(ctx0, cur);
+        cur = ggml_clamp(ctx0, cur, -10000.0f, 10000.0f);
+        cur = ggml_gelu_inplace(ctx0, cur);
 
         cur = ggml_mul_mat(ctx0, model.layers[il].ff_o_w, cur);
         cur = ggml_add(ctx0,
@@ -1085,9 +1087,8 @@ bool clip_image_encode(
             V = ggml_reshape_3d(ctx0, V, num_positions, d_head, n_head);
 
             struct ggml_tensor *KQ = ggml_mul_mat(ctx0, K, Q);
-
+            KQ = ggml_clamp(ctx0, KQ, -10000.0f, 10000.0f);
             KQ = ggml_soft_max_inplace(ctx0, KQ);
-
             struct ggml_tensor *KQV = ggml_mul_mat(ctx0, V, KQ);
             KQV = ggml_reshape_4d(ctx0, KQV, d_head, num_positions, n_head, 1);
             KQV = ggml_cont(ctx0, ggml_permute(ctx0, KQV, 0, 2, 1, 3));
@@ -1123,7 +1124,9 @@ bool clip_image_encode(
                        ggml_repeat(ctx0, model.layers[il].ff_i_b, cur),
                        cur);
 
-        cur = ggml_gelu_quick_inplace(ctx0, cur);
+        cur = ggml_clamp(ctx0, cur, -10000.0f, 10000.0f);
+
+        cur = ggml_gelu_inplace(ctx0, cur);
         // ggml_set_name(cur, "check");
 
         cur = ggml_mul_mat(ctx0, model.layers[il].ff_o_w, cur);
