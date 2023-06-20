@@ -10,14 +10,21 @@ endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(CLIP_STANDALONE ON)
+else()
+    set(CLIP_STANDALONE OFF)
+endif()
+
 #
 # Option list
 #
 
 # general
 option(CLIP_STATIC                 "CLIP: static link libraries"                          OFF)
-option(CLIP_NO_EXAMPLES                 "CLIP: do not build examples"                          OFF)
-option(CLIP_NO_TESTS                 "CLIP: do not build tests"                          OFF)
+option(CLIP_NO_EXAMPLES            "CLIP: do not build examples"                          NOT ${CLIP_STANDALONE})
+option(CLIP_BUILD_IMAGE_SEARCH     "CLIP: build image-search"                             OFF)
+option(CLIP_NO_TEST                "CLIP: do not build tests"                             NOT ${CLIP_STANDALONE})
 option(CLIP_NATIVE                 "CLIP: enable -march=native flag"                      ON)
 option(CLIP_LTO                    "CLIP: enable link time optimization"                  OFF)
 
@@ -47,6 +54,7 @@ endif()
 # 3rd party libs
 option(CLIP_ACCELERATE             "CLIP: enable Accelerate framework"                    ON)
 option(CLIP_OPENBLAS               "CLIP: use OpenBLAS"                                   OFF)
+
 
 #
 # Compile flags

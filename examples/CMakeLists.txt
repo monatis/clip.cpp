@@ -1,9 +1,10 @@
-
 add_library(common-clip STATIC common-clip.cpp)
 target_link_libraries(common-clip PRIVATE ggml)
 target_include_directories(common-clip PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_subdirectory(./image-search)
+if (CLIP_BUILD_IMAGE_SEARCH)
+    add_subdirectory(./image-search)
+endif()
 
 add_executable(main main.cpp)
 target_link_libraries(main PRIVATE clip common-clip ggml)
