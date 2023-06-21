@@ -684,7 +684,7 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
 
             fin.read(reinterpret_cast<char *>(tensor->data), ggml_nbytes(tensor));
 
-#ifdef CLIP_DEBUG
+#ifdef CLIP_DEBUG_TENSORS
             printf("%42s - [%5d, %5d], type = %6s, %6.2f MB\n", name.data(), ne[0], ne[1], ftype == 0 ? "float" : "f16", ggml_nbytes(tensor) / 1024.0 / 1024.0);
 #endif
 
@@ -814,7 +814,6 @@ bool clip_text_encode(
             V = ggml_reshape_3d(ctx0, V, N, d_head, n_head);
 
             struct ggml_tensor *KQ = ggml_mul_mat(ctx0, K, Q);
-            // KQ = ggml_clamp(ctx0, KQ, -10000.0f, 10000.0f);
             KQ = ggml_diag_mask_inf_inplace(ctx0, KQ, 0); // causal masking
             KQ = ggml_soft_max_inplace(ctx0, KQ);
 
@@ -853,8 +852,7 @@ bool clip_text_encode(
                        ggml_repeat(ctx0, model.layers[il].ff_i_b, cur),
                        cur);
 
-        cur = ggml_clamp(ctx0, cur, -10000.0f, 10000.0f);
-        cur = ggml_gelu_inplace(ctx0, cur);
+        cur = ggml_gelu_quick_inplace(ctx0, cur);
 
         cur = ggml_mul_mat(ctx0, model.layers[il].ff_o_w, cur);
         cur = ggml_add(ctx0,
@@ -863,7 +861,6 @@ bool clip_text_encode(
 
         // residual 2
         cur = ggml_add(ctx0, embeddings, cur);
-        // ggml_set_name(cur, "check");
 
         embeddings = cur;
     }
@@ -990,10 +987,7 @@ bool clip_image_encode(
     gf.n_threads = n_threads;
 
     struct ggml_tensor *inp = ggml_new_tensor_4d(ctx0, GGML_TYPE_F32, image_size, image_size, 3, 1);
-    // auto fin = std::ifstream("/home/yusuf/clip-in-ggml/tests/inputs.bin", std::ios::binary);
-    // fin.read(reinterpret_cast<char *>(inp->data), ggml_nbytes(inp));
 
-    // if (0)
     {
         float *data = (float *)ggml_get_data(inp);
 
@@ -1016,7 +1010,6 @@ bool clip_image_encode(
     }
 
     inp = ggml_conv_2d_sk_p0(ctx0, model.patch_embeddings, inp);
-
     inp = ggml_reshape_2d(ctx0, inp, num_patches, hidden_size);
     inp = ggml_cont(ctx0, ggml_transpose(ctx0, inp));
 
@@ -1087,7 +1080,6 @@ bool clip_image_encode(
             V = ggml_reshape_3d(ctx0, V, num_positions, d_head, n_head);
 
             struct ggml_tensor *KQ = ggml_mul_mat(ctx0, K, Q);
-            KQ = ggml_clamp(ctx0, KQ, -10000.0f, 10000.0f);
             KQ = ggml_soft_max_inplace(ctx0, KQ);
             struct ggml_tensor *KQV = ggml_mul_mat(ctx0, V, KQ);
             KQV = ggml_reshape_4d(ctx0, KQV, d_head, num_positions, n_head, 1);
@@ -1124,10 +1116,7 @@ bool clip_image_encode(
                        ggml_repeat(ctx0, model.layers[il].ff_i_b, cur),
                        cur);
 
-        cur = ggml_clamp(ctx0, cur, -10000.0f, 10000.0f);
-
-        cur = ggml_gelu_inplace(ctx0, cur);
-        // ggml_set_name(cur, "check");
+        cur = ggml_gelu_quick_inplace(ctx0, cur);
 
         cur = ggml_mul_mat(ctx0, model.layers[il].ff_o_w, cur);
         cur = ggml_add(ctx0,
@@ -1139,7 +1128,6 @@ bool clip_image_encode(
         // ggml_set_name(cur, "check");
 
         embeddings = cur;
-        // break;
     }
 
     // get the output of cls token, e.g., 0th index
@@ -1186,11 +1174,14 @@ bool clip_image_encode(
 
             // printf("\n\n");
             double sum = 0.0;
+            int nan_count = 0;
             for (int i = 0; i < ggml_nelements(t); i++)
             {
                 sum += data[i];
+                if (isnan(data[i]))
+                    nan_count += 1;
             }
-            printf("sum:  %f\n", sum);
+            printf("sum:  %f, nan_count: %d\n", sum, nan_count);
         };
 
         auto print_t_f16 = [&](struct ggml_tensor *t)
@@ -1204,11 +1195,14 @@ bool clip_image_encode(
             }
             printf("\n\n");
             double sum = 0.0;
+            int32_t nan_count = 0;
             for (int i = 0; i < ggml_nelements(t); i++)
             {
                 sum += ggml_fp16_to_fp32(data[i]);
+                if (isnan(ggml_fp16_to_fp32(data[i])))
+                    nan_count += 1;
             }
-            printf("sum:  %f\n", sum);
+            printf("sum:  %f, nan_count: %d\n", sum, nan_count);
         };
 
         auto *t = ggml_get_tensor(ctx0, "check");
