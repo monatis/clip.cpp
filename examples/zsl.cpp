@@ -1,7 +1,5 @@
 // zero-shot image labeling example
 
-// Uncomment the line below if you intend to debug embedding output
-// #define CLIP_DEBUG
 #include "clip.h"
 
 int main(int argc, char **argv)

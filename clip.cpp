@@ -11,6 +11,27 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+// #define CLIP_DEBUG
+
+// utility function for a workaround until https://github.com/ggerganov/ggml/issues/260 is resolved
+// after that, remove this and use the mechanism implemented in GGML directly
+size_t get_mem_req_by_size(size_t n_tensors)
+{
+    size_t mb = 1024 * 1024;
+    switch (n_tensors)
+    {
+    case 397: // base
+        return 90 * mb;
+    case 589:
+        return 1200 * mb;
+    case 909:
+        return 1960 * mb;
+    default:
+        fprintf(stderr, "%s: Unrecognized number of tensors: %d. Check if you pass the correct model file\n", __func__, n_tensors);
+        exit(1);
+    }
+}
+
 std::vector<clip_vocab::id> clip_tokenize(const clip_ctx *ctx, const std::string &text)
 {
     std::vector<std::string> words;
@@ -684,7 +705,7 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
 
             fin.read(reinterpret_cast<char *>(tensor->data), ggml_nbytes(tensor));
 
-#ifdef CLIP_DEBUG
+#ifdef CLIP_DEBUG_TENSORS
             printf("%42s - [%5d, %5d], type = %6s, %6.2f MB\n", name.data(), ne[0], ne[1], ftype == 0 ? "float" : "f16", ggml_nbytes(tensor) / 1024.0 / 1024.0);
 #endif
 
@@ -709,9 +730,19 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
 
     // Calculate space requirements for setting up context buffers later
     {
-        // TODO: We set the initial buffer size to 16MB and hope it's enough. Maybe there is a better way to do this?
-        new_clip->buf_compute.resize(96 * 1024 * 1024);
+        // TODO: We currently get the size of memory requirement from the pre-computed information
+        // based on the model variant, indicated by  the number of tensors.
+        // Rewrite this logic when GGML implements a mechanism to predict the required memory.
+        size_t n_tensors = new_clip->text_model.tensors.size() + new_clip->vision_model.tensors.size();
+        size_t mem_req = get_mem_req_by_size(n_tensors);
+        new_clip->buf_compute.resize(mem_req);
+
+        if (verbosity >= 2)
+        {
+            printf("%s: %d MB of compute buffer allocated\n", __func__, mem_req / 1024 / 1024);
+        }
     }
+
     if (verbosity >= 1)
     {
         printf("%s: model loadded\n", __func__);
@@ -861,7 +892,6 @@ bool clip_text_encode(
 
         // residual 2
         cur = ggml_add(ctx0, embeddings, cur);
-        // ggml_set_name(cur, "check");
 
         embeddings = cur;
     }
@@ -988,10 +1018,7 @@ bool clip_image_encode(
     gf.n_threads = n_threads;
 
     struct ggml_tensor *inp = ggml_new_tensor_4d(ctx0, GGML_TYPE_F32, image_size, image_size, 3, 1);
-    // auto fin = std::ifstream("/home/yusuf/clip-in-ggml/tests/inputs.bin", std::ios::binary);
-    // fin.read(reinterpret_cast<char *>(inp->data), ggml_nbytes(inp));
 
-    // if (0)
     {
         float *data = (float *)ggml_get_data(inp);
 
@@ -1014,7 +1041,6 @@ bool clip_image_encode(
     }
 
     inp = ggml_conv_2d_sk_p0(ctx0, model.patch_embeddings, inp);
-
     inp = ggml_reshape_2d(ctx0, inp, num_patches, hidden_size);
     inp = ggml_cont(ctx0, ggml_transpose(ctx0, inp));
 
@@ -1085,9 +1111,7 @@ bool clip_image_encode(
             V = ggml_reshape_3d(ctx0, V, num_positions, d_head, n_head);
 
             struct ggml_tensor *KQ = ggml_mul_mat(ctx0, K, Q);
-
             KQ = ggml_soft_max_inplace(ctx0, KQ);
-
             struct ggml_tensor *KQV = ggml_mul_mat(ctx0, V, KQ);
             KQV = ggml_reshape_4d(ctx0, KQV, d_head, num_positions, n_head, 1);
             KQV = ggml_cont(ctx0, ggml_permute(ctx0, KQV, 0, 2, 1, 3));
@@ -1124,7 +1148,6 @@ bool clip_image_encode(
                        cur);
 
         cur = ggml_gelu_quick_inplace(ctx0, cur);
-        // ggml_set_name(cur, "check");
 
         cur = ggml_mul_mat(ctx0, model.layers[il].ff_o_w, cur);
         cur = ggml_add(ctx0,
@@ -1136,7 +1159,6 @@ bool clip_image_encode(
         // ggml_set_name(cur, "check");
 
         embeddings = cur;
-        // break;
     }
 
     // get the output of cls token, e.g., 0th index
@@ -1183,11 +1205,14 @@ bool clip_image_encode(
 
             // printf("\n\n");
             double sum = 0.0;
+            int nan_count = 0;
             for (int i = 0; i < ggml_nelements(t); i++)
             {
                 sum += data[i];
+                if (isnan(data[i]))
+                    nan_count += 1;
             }
-            printf("sum:  %f\n", sum);
+            printf("sum:  %f, nan_count: %d\n", sum, nan_count);
         };
 
         auto print_t_f16 = [&](struct ggml_tensor *t)
@@ -1201,11 +1226,14 @@ bool clip_image_encode(
             }
             printf("\n\n");
             double sum = 0.0;
+            int32_t nan_count = 0;
             for (int i = 0; i < ggml_nelements(t); i++)
             {
                 sum += ggml_fp16_to_fp32(data[i]);
+                if (isnan(ggml_fp16_to_fp32(data[i])))
+                    nan_count += 1;
             }
-            printf("sum:  %f\n", sum);
+            printf("sum:  %f, nan_count: %d\n", sum, nan_count);
         };
 
         auto *t = ggml_get_tensor(ctx0, "check");
