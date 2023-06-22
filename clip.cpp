@@ -11,6 +11,27 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#define CLIP_DEBUG
+
+// utility function for a workaround until https://github.com/ggerganov/ggml/issues/260 is resolved
+// after that, remove this and use the mechanism implemented in GGML directly
+size_t get_mem_req_by_size(size_t n_tensors)
+{
+    size_t mb = 1024 * 1024;
+    switch (n_tensors)
+    {
+    case 397: // base
+        return 90 * mb;
+    case 589:
+        return 1200 * mb;
+    case 909:
+        return 1960 * mb;
+    default:
+        fprintf(stderr, "%s: Unrecognized number of tensors: %d. Check if you pass the correct model file\n", __func__, n_tensors);
+        exit(1);
+    }
+}
+
 std::vector<clip_vocab::id> clip_tokenize(const clip_ctx *ctx, const std::string &text)
 {
     std::vector<std::string> words;
@@ -709,9 +730,19 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
 
     // Calculate space requirements for setting up context buffers later
     {
-        // TODO: We set the initial buffer size to 16MB and hope it's enough. Maybe there is a better way to do this?
-        new_clip->buf_compute.resize(96 * 100ul * 1024 * 1024);
+        // TODO: We currently get the size of memory requirement from the pre-computed information
+        // based on the model variant, indicated by  the number of tensors.
+        // Rewrite this logic when GGML implements a mechanism to predict the required memory.
+        size_t n_tensors = new_clip->text_model.tensors.size() + new_clip->vision_model.tensors.size();
+        size_t mem_req = get_mem_req_by_size(n_tensors);
+        new_clip->buf_compute.resize(mem_req);
+
+        if (verbosity >= 2)
+        {
+            printf("%s: %d MB of compute buffer allocated\n", __func__, mem_req / 1024 / 1024);
+        }
     }
+
     if (verbosity >= 1)
     {
         printf("%s: model loadded\n", __func__);
