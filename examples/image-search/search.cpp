@@ -5,7 +5,7 @@
 
 struct my_app_params {
     int32_t n_threads {4};
-    std::string model {"../models/ggml-model-f16.bin"};
+    std::string model;
     int32_t verbose {1};
     // TODO: index dir
 
@@ -19,7 +19,7 @@ void my_print_help(int argc, char **argv, my_app_params &params) {
     printf("Usage: %s [options] <search string>\n", argv[0]);
     printf("\nOptions:");
     printf("  -h, --help: Show this message and exit\n");
-    printf("  -m <path>, --model <path>: path to model. Default: %s\n", params.model.c_str());
+    printf("  -m <path>, --model <path>: overwrite path to model. Read from images.paths by default.\n");
     printf("  -t N, --threads N: Number of threads to use for inference. Default: %d\n", params.n_threads);
     printf("  -v <level>, --verbose <level>: Control the level of verbosity. 0 = minimum, 2 = maximum. Default: %d\n", params.verbose);
 
@@ -84,20 +84,30 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // load model path
+    std::ifstream image_file_index_file("images.paths", std::ios::binary);
+    std::string line;
+    std::getline(image_file_index_file, line);
+    if (params.model.empty()) {
+        params.model = line;
+    } else {
+        printf("%s: using alternative model from %s. Make sure you use the same model you used for indexing, or the embeddings wont work.\n", __func__, params.model.c_str());
+    }
+
+    // load model
     auto clip_ctx = clip_model_load(params.model.c_str(), params.verbose);
     if (!clip_ctx) {
         printf("%s: Unable to load model from %s\n", __func__, params.model.c_str());
         return 1;
     }
 
+    // load paths and embeddings database
     std::vector<std::string> image_file_index;
     unum::usearch::index_gt<unum::usearch::cos_gt<float>> embd_index;
 
     embd_index.view("images.usearch");
 
-    // load paths
-    std::ifstream image_file_index_file("images.paths", std::ios::binary);
-    std::string line;
+    // load image paths
     do {
         std::getline(image_file_index_file, line);
         if (line.empty()) {

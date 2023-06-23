@@ -5,7 +5,7 @@ set(CXX_STANDARD_REQUIRED ON)
 include(FetchContent)
 FetchContent_Declare(usearch
     GIT_REPOSITORY https://github.com/unum-cloud/usearch.git
-    GIT_TAG v0.18.8
+    GIT_TAG v0.19.0
 )
 FetchContent_MakeAvailable(usearch)
 

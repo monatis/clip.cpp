@@ -75,7 +75,7 @@ bool is_image_file_extension(std::string_view ext) {
     if (ext == ".png") return true;
     if (ext == ".PNG") return true;
 
-    // TODO: add all the supported files for std_image
+    // TODO(green-sky): determine if we should add more formats from stbi. tga/hdr/pnm seem kinda niche.
 
     return false;
 }
@@ -100,7 +100,7 @@ int main(int argc, char** argv) {
 
     size_t label = 0;
 
-    // search for images in path and create embedding
+    // search for images in path and write embedding to database
     for (const auto& base_dir : params.image_directories) {
         fprintf(stdout, "%s: starting base dir scan of '%s'\n", __func__, base_dir.c_str());
 
@@ -124,12 +124,12 @@ int main(int argc, char** argv) {
             }
 
             clip_image_u8 img0;
-            clip_image_f32 img_res;
             if (!clip_image_load_from_file(img_path, img0)) {
                 fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, img_path.c_str());
                 continue;
             }
 
+            clip_image_f32 img_res;
             clip_image_preprocess(&img0, &img_res);
 
             std::vector<float> vec(vec_dim);
@@ -142,7 +142,7 @@ int main(int argc, char** argv) {
                 embd_index.reserve(embd_index.size() + 32);
             }
 
-            // add the image
+            // add the image to the database
             embd_index.add(label++, {vec.data(), vec.size()});
             image_file_index.push_back(std::filesystem::canonical(dir_entry.path()));
         }
@@ -153,9 +153,10 @@ int main(int argc, char** argv) {
     // save to disk
 
     embd_index.save("images.usearch");
-    // TODO: figrue out why usearch leaks
 
     std::ofstream image_file_index_file("images.paths", std::ios::binary | std::ios::trunc);
+    // first line is model
+    image_file_index_file << params.model << "\n";
     for (const auto& i_path : image_file_index) {
         image_file_index_file << i_path << "\n";
     }
