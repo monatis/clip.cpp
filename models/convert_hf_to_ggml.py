@@ -94,6 +94,9 @@ fout.write(struct.pack("i", v_hparams["intermediate_size"]))
 fout.write(struct.pack("i", v_hparams.get("projection_dim", config["projection_dim"])))
 fout.write(struct.pack("i", v_hparams["num_attention_heads"]))
 fout.write(struct.pack("i", v_hparams["num_hidden_layers"]))
+
+use_gelu = int(v_hparams["hidden_act"] == "gelu")
+fout.write(struct.pack("i", use_gelu))
 fout.write(struct.pack("i", ftype))
 
 
