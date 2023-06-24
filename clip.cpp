@@ -910,7 +910,7 @@ bool clip_text_encode(
 
         if (ctx->use_gelu)
         {
-            cur = ggml_gelu_quick_inplace(ctx0, cur);
+            cur = ggml_gelu_inplace(ctx0, cur);
         }
         else
         {
