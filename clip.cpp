@@ -269,12 +269,14 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
 
         if (verbosity >= 2)
         {
-            printf("%s: n_vocab = %d\n", __func__, hparams.n_vocab);
-            printf("%s: num_positions   = %d\n", __func__, hparams.num_positions);
-            printf("%s: t_hidden_size  = %d\n", __func__, hparams.hidden_size);
-            printf("%s: t_n_intermediate  = %d\n", __func__, hparams.n_intermediate);
-            printf("%s: t_n_head  = %d\n", __func__, hparams.n_head);
-            printf("%s: t_n_layer = %d\n", __func__, hparams.n_layer);
+            printf("\n%s: text model hparams\n", __func__);
+            printf("n_vocab            %d\n", hparams.n_vocab);
+            printf("num_positions      %d\n", hparams.num_positions);
+            printf("t_hidden_size      %d\n", hparams.hidden_size);
+            printf("t_n_intermediate   %d\n", hparams.n_intermediate);
+            printf("t_projection_dim   %d\n", hparams.projection_dim);
+            printf("t_n_head           %d\n", hparams.n_head);
+            printf("t_n_layer          %d\n", hparams.n_layer);
         }
     }
 
@@ -295,14 +297,17 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
 
         if (verbosity >= 2)
         {
-            printf("%s: image_size = %d\n", __func__, hparams.image_size);
-            printf("%s: patch_size   = %d\n", __func__, hparams.patch_size);
-            printf("%s: v_hidden_size  = %d\n", __func__, hparams.hidden_size);
-            printf("%s: v_n_intermediate  = %d\n", __func__, hparams.n_intermediate);
-            printf("%s: v_n_head  = %d\n", __func__, hparams.n_head);
-            printf("%s: v_n_layer = %d\n", __func__, hparams.n_layer);
-            printf("%s: use_gelu     = %d\n", __func__, new_clip->use_gelu);
-            printf("%s: ftype     = %d\n", __func__, new_clip->ftype);
+            printf("\n%s: vision model hparams\n", __func__);
+            printf("image_size             %d\n", hparams.image_size);
+            printf("patch_size         %d\n", hparams.patch_size);
+            printf("v_hidden_size      %d\n", hparams.hidden_size);
+            printf("v_n_intermediate   %d\n", hparams.n_intermediate);
+            printf("v_projection_dim   %d\n", hparams.projection_dim);
+            printf("v_n_head           %d\n", hparams.n_head);
+            printf("v_n_layer          %d\n", hparams.n_layer);
+
+            printf("\nuse_gelu           %d\n", new_clip->use_gelu);
+            printf("ftype              %d\n\n", new_clip->ftype);
         }
     }
 
@@ -765,7 +770,7 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
 
     if (verbosity >= 1)
     {
-        printf("%s: model loadded\n", __func__);
+        printf("%s: model loadded\n\n", __func__);
     }
 
     return new_clip;
