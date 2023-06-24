@@ -66,6 +66,7 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
 
     clip_text_hparams t_hparams;
     clip_vision_hparams v_hparams;
+    int32_t use_gelu;
     int32_t ftype;
 
     // load text hparams
@@ -103,14 +104,16 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
         fin.read((char *)&v_hparams.projection_dim, sizeof(v_hparams.projection_dim));
         fin.read((char *)&v_hparams.n_head, sizeof(v_hparams.n_head));
         fin.read((char *)&v_hparams.n_layer, sizeof(v_hparams.n_layer));
+        fin.read((char *)&use_gelu, sizeof(use_gelu));
         fin.read((char *)&ftype, sizeof(ftype));
 
         printf("%s: image_size = %d\n", __func__, v_hparams.image_size);
         printf("%s: patch_size   = %d\n", __func__, v_hparams.patch_size);
-        printf("%s: t_hidden_size  = %d\n", __func__, v_hparams.hidden_size);
-        printf("%s: t_n_intermediate  = %d\n", __func__, v_hparams.n_intermediate);
-        printf("%s: t_n_head  = %d\n", __func__, v_hparams.n_head);
-        printf("%s: t_n_layer = %d\n", __func__, v_hparams.n_layer);
+        printf("%s: v_hidden_size  = %d\n", __func__, v_hparams.hidden_size);
+        printf("%s: v_n_intermediate  = %d\n", __func__, v_hparams.n_intermediate);
+        printf("%s: v_n_head  = %d\n", __func__, v_hparams.n_head);
+        printf("%s: v_n_layer = %d\n", __func__, v_hparams.n_layer);
+        printf("%s: use_gelu = %d\n", __func__, use_gelu);
 
         fout.write((char *)&v_hparams.image_size, sizeof(v_hparams.image_size));
         fout.write((char *)&v_hparams.patch_size, sizeof(v_hparams.patch_size));
@@ -119,6 +122,7 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
         fout.write((char *)&v_hparams.projection_dim, sizeof(v_hparams.projection_dim));
         fout.write((char *)&v_hparams.n_head, sizeof(v_hparams.n_head));
         fout.write((char *)&v_hparams.n_layer, sizeof(v_hparams.n_layer));
+        fout.write((char *)&use_gelu, sizeof(use_gelu));
         fout.write((char *)&itype, sizeof(itype));
     }
 

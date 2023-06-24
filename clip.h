@@ -49,8 +49,6 @@ struct clip_vision_hparams
     int32_t n_layer = 12;
 };
 
-typedef int32_t clip_vocab_id;
-
 //
 // Vocab utils
 //
@@ -184,6 +182,7 @@ struct clip_ctx
     clip_text_model text_model;
     clip_vision_model vision_model;
     clip_vocab vocab;
+    int32_t use_gelu = 0;
     int32_t ftype = 1;
     ggml_context *ctx;
     clip_buffer buf_compute;

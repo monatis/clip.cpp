@@ -21,11 +21,28 @@ size_t get_mem_req_by_size(size_t n_tensors)
     switch (n_tensors)
     {
     case 397: // base
-        return 90 * mb;
+        return 8 * mb;
     case 589:
-        return 1200 * mb;
+        return 16 * mb;
     case 909:
-        return 1960 * mb;
+        return 24 * mb;
+    default:
+        fprintf(stderr, "%s: Unrecognized number of tensors: %d. Check if you pass the correct model file\n", __func__, n_tensors);
+        exit(1);
+    }
+}
+
+size_t get_scr_buf_req_by_size(size_t n_tensors)
+{
+    size_t mb = 1024 * 1024;
+    switch (n_tensors)
+    {
+    case 397: // base
+        return 16 * mb;
+    case 589:
+        return 64 * mb;
+    case 909:
+        return 96 * mb;
     default:
         fprintf(stderr, "%s: Unrecognized number of tensors: %d. Check if you pass the correct model file\n", __func__, n_tensors);
         exit(1);
@@ -252,12 +269,14 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
 
         if (verbosity >= 2)
         {
-            printf("%s: n_vocab = %d\n", __func__, hparams.n_vocab);
-            printf("%s: num_positions   = %d\n", __func__, hparams.num_positions);
-            printf("%s: t_hidden_size  = %d\n", __func__, hparams.hidden_size);
-            printf("%s: t_n_intermediate  = %d\n", __func__, hparams.n_intermediate);
-            printf("%s: t_n_head  = %d\n", __func__, hparams.n_head);
-            printf("%s: t_n_layer = %d\n", __func__, hparams.n_layer);
+            printf("\n%s: text model hparams\n", __func__);
+            printf("n_vocab            %d\n", hparams.n_vocab);
+            printf("num_positions      %d\n", hparams.num_positions);
+            printf("t_hidden_size      %d\n", hparams.hidden_size);
+            printf("t_n_intermediate   %d\n", hparams.n_intermediate);
+            printf("t_projection_dim   %d\n", hparams.projection_dim);
+            printf("t_n_head           %d\n", hparams.n_head);
+            printf("t_n_layer          %d\n", hparams.n_layer);
         }
     }
 
@@ -272,17 +291,23 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
         fin.read((char *)&hparams.projection_dim, sizeof(hparams.projection_dim));
         fin.read((char *)&hparams.n_head, sizeof(hparams.n_head));
         fin.read((char *)&hparams.n_layer, sizeof(hparams.n_layer));
+
+        fin.read((char *)&new_clip->use_gelu, sizeof(new_clip->use_gelu));
         fin.read((char *)&new_clip->ftype, sizeof(new_clip->ftype));
 
         if (verbosity >= 2)
         {
-            printf("%s: image_size = %d\n", __func__, hparams.image_size);
-            printf("%s: patch_size   = %d\n", __func__, hparams.patch_size);
-            printf("%s: v_hidden_size  = %d\n", __func__, hparams.hidden_size);
-            printf("%s: v_n_intermediate  = %d\n", __func__, hparams.n_intermediate);
-            printf("%s: v_n_head  = %d\n", __func__, hparams.n_head);
-            printf("%s: v_n_layer = %d\n", __func__, hparams.n_layer);
-            printf("%s: ftype     = %d\n", __func__, new_clip->ftype);
+            printf("\n%s: vision model hparams\n", __func__);
+            printf("image_size         %d\n", hparams.image_size);
+            printf("patch_size         %d\n", hparams.patch_size);
+            printf("v_hidden_size      %d\n", hparams.hidden_size);
+            printf("v_n_intermediate   %d\n", hparams.n_intermediate);
+            printf("v_projection_dim   %d\n", hparams.projection_dim);
+            printf("v_n_head           %d\n", hparams.n_head);
+            printf("v_n_layer          %d\n", hparams.n_layer);
+
+            printf("\nuse_gelu           %d\n", new_clip->use_gelu);
+            printf("ftype              %d\n\n", new_clip->ftype);
         }
     }
 
@@ -745,7 +770,7 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
 
     if (verbosity >= 1)
     {
-        printf("%s: model loadded\n", __func__);
+        printf("%s: model loadded\n\n", __func__);
     }
 
     return new_clip;
@@ -788,6 +813,9 @@ bool clip_text_encode(
     struct ggml_cgraph gf = {};
     gf.n_threads = n_threads;
 
+    static size_t scr0_size = get_scr_buf_req_by_size(ctx->text_model.tensors.size() + ctx->vision_model.tensors.size());
+    static void *scr0 = malloc(scr0_size);
+
     struct ggml_tensor *input_ids = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, N);
     memcpy(input_ids->data, tokens.data(), N * ggml_element_size(input_ids));
 
@@ -807,6 +835,8 @@ bool clip_text_encode(
     for (int il = 0; il < n_layer; il++)
     {
         struct ggml_tensor *cur = embeddings; // embeddings = residual, cur = hidden_states
+
+        ggml_set_scratch(ctx0, {0, scr0_size, scr0});
 
         // layernorm1
         {
@@ -883,7 +913,14 @@ bool clip_text_encode(
                        ggml_repeat(ctx0, model.layers[il].ff_i_b, cur),
                        cur);
 
-        cur = ggml_gelu_quick_inplace(ctx0, cur);
+        if (ctx->use_gelu)
+        {
+            cur = ggml_gelu_inplace(ctx0, cur);
+        }
+        else
+        {
+            cur = ggml_gelu_quick_inplace(ctx0, cur);
+        }
 
         cur = ggml_mul_mat(ctx0, model.layers[il].ff_o_w, cur);
         cur = ggml_add(ctx0,
@@ -910,6 +947,8 @@ bool clip_text_encode(
     // get the output of eot token, e.g., last index
     struct ggml_tensor *eot = ggml_new_i32(ctx0, N - 1);
     embeddings = ggml_get_rows(ctx0, embeddings, eot);
+
+    ggml_set_scratch(ctx0, {0, 0, nullptr});
 
     // text projection
     embeddings = ggml_mul_mat(ctx0, model.projection, embeddings);
@@ -1017,6 +1056,9 @@ bool clip_image_encode(
     struct ggml_cgraph gf = {};
     gf.n_threads = n_threads;
 
+    static size_t scr0_size = get_scr_buf_req_by_size(ctx->text_model.tensors.size() + ctx->vision_model.tensors.size());
+    static void *scr0 = malloc(scr0_size);
+
     struct ggml_tensor *inp = ggml_new_tensor_4d(ctx0, GGML_TYPE_F32, image_size, image_size, 3, 1);
 
     {
@@ -1073,6 +1115,8 @@ bool clip_image_encode(
     for (int il = 0; il < n_layer; il++)
     {
         struct ggml_tensor *cur = embeddings; // embeddings = residual, cur = hidden_states
+
+        ggml_set_scratch(ctx0, {0, scr0_size, scr0});
 
         // layernorm1
         {
@@ -1147,7 +1191,14 @@ bool clip_image_encode(
                        ggml_repeat(ctx0, model.layers[il].ff_i_b, cur),
                        cur);
 
-        cur = ggml_gelu_quick_inplace(ctx0, cur);
+        if (ctx->use_gelu)
+        {
+            cur = ggml_gelu_inplace(ctx0, cur);
+        }
+        else
+        {
+            cur = ggml_gelu_quick_inplace(ctx0, cur);
+        }
 
         cur = ggml_mul_mat(ctx0, model.layers[il].ff_o_w, cur);
         cur = ggml_add(ctx0,
@@ -1175,6 +1226,8 @@ bool clip_image_encode(
                                        embeddings),
                               ggml_repeat(ctx0, model.post_ln_b, embeddings));
     }
+
+    ggml_set_scratch(ctx0, {0, 0, nullptr});
 
     // final visual projection
     embeddings = ggml_mul_mat(ctx0, model.projection, embeddings);
@@ -1205,14 +1258,11 @@ bool clip_image_encode(
 
             // printf("\n\n");
             double sum = 0.0;
-            int nan_count = 0;
             for (int i = 0; i < ggml_nelements(t); i++)
             {
                 sum += data[i];
-                if (isnan(data[i]))
-                    nan_count += 1;
             }
-            printf("sum:  %f, nan_count: %d\n", sum, nan_count);
+            printf("sum:  %f\n", sum);
         };
 
         auto print_t_f16 = [&](struct ggml_tensor *t)
@@ -1226,14 +1276,11 @@ bool clip_image_encode(
             }
             printf("\n\n");
             double sum = 0.0;
-            int32_t nan_count = 0;
             for (int i = 0; i < ggml_nelements(t); i++)
             {
                 sum += ggml_fp16_to_fp32(data[i]);
-                if (isnan(ggml_fp16_to_fp32(data[i])))
-                    nan_count += 1;
             }
-            printf("sum:  %f, nan_count: %d\n", sum, nan_count);
+            printf("sum:  %f\n", sum);
         };
 
         auto *t = ggml_get_tensor(ctx0, "check");
