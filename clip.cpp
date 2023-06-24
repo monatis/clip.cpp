@@ -298,7 +298,7 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
         if (verbosity >= 2)
         {
             printf("\n%s: vision model hparams\n", __func__);
-            printf("image_size             %d\n", hparams.image_size);
+            printf("image_size         %d\n", hparams.image_size);
             printf("patch_size         %d\n", hparams.patch_size);
             printf("v_hidden_size      %d\n", hparams.hidden_size);
             printf("v_n_intermediate   %d\n", hparams.n_intermediate);
