@@ -13,9 +13,6 @@ It's also a part of Stable Diffusion and and the recently emerging field of larg
 This repo is aimed at powering useful applications based on such models on computation- or memory-constraint devices.
 4-bit quantized CLIP is only 85.6 MB!
 
-## WARNING
-This is not recommended for production yet, and and it needs some extra work to prepare examples and do benchmarks. Also see the node below.
-
 ## Note about image preprocessing
 PIL uses a two-pass convolutions-based bicubic interpolation in resizing with antialiasing applied. In Pytorch, antialiasing is optional. It needs some extra attention to implement this preprocessing logic that matches their results numerically. However, I found that linear interpolation is also good enough for both comparison of different embeddings from this implementation and also comparison of an embedding from this implementation and another one from Transformers. So let's use it until we craft a proper bicubic interpolation.
 
@@ -25,7 +22,7 @@ You can convert CLIP models from OpenAI and LAION in Transformers format. Appare
 1. Clone the model repo from HF Hub:
 
 ```shell
-git lfs init.git
+git lfs init
 git clone https://huggingface.co/laion/CLIP-ViT-B-32-laion2B-s34B-b79K
 ```
 
