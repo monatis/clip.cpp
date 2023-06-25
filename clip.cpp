@@ -15,13 +15,20 @@
 
 // utility function for a workaround until https://github.com/ggerganov/ggml/issues/260 is resolved
 // after that, remove this and use the mechanism implemented in GGML directly
-size_t get_mem_req_by_size(size_t n_tensors)
+size_t get_mem_req_by_size(const size_t n_tensors, const int n_image_positions)
 {
     size_t mb = 1024 * 1024;
     switch (n_tensors)
     {
     case 397: // base
-        return 8 * mb;
+        if (n_image_positions == 50)
+        {
+            return 8 * mb;
+        }
+        else
+        {
+            return 16 * mb;
+        }
     case 589:
         return 16 * mb;
     case 909:
@@ -32,13 +39,20 @@ size_t get_mem_req_by_size(size_t n_tensors)
     }
 }
 
-size_t get_scr_buf_req_by_size(size_t n_tensors)
+size_t get_scr_buf_req_by_size(const size_t n_tensors, const int n_positions)
 {
     size_t mb = 1024 * 1024;
     switch (n_tensors)
     {
     case 397: // base
-        return 16 * mb;
+        if (n_positions <= 50)
+        {
+            return 16 * mb;
+        }
+        else
+        {
+            return 64 * mb;
+        }
     case 589:
         return 64 * mb;
     case 909:
@@ -758,8 +772,9 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
         // TODO: We currently get the size of memory requirement from the pre-computed information
         // based on the model variant, indicated by  the number of tensors.
         // Rewrite this logic when GGML implements a mechanism to predict the required memory.
-        size_t n_tensors = new_clip->text_model.tensors.size() + new_clip->vision_model.tensors.size();
-        size_t mem_req = get_mem_req_by_size(n_tensors);
+        const size_t n_tensors = new_clip->text_model.tensors.size() + new_clip->vision_model.tensors.size();
+        const int n_image_positions = (vision_model.hparams.image_size / vision_model.hparams.patch_size) * (vision_model.hparams.image_size / vision_model.hparams.patch_size) + 1;
+        size_t mem_req = get_mem_req_by_size(n_tensors, n_image_positions);
         new_clip->buf_compute.resize(mem_req);
 
         if (verbosity >= 2)
@@ -813,7 +828,7 @@ bool clip_text_encode(
     struct ggml_cgraph gf = {};
     gf.n_threads = n_threads;
 
-    static size_t scr0_size = get_scr_buf_req_by_size(ctx->text_model.tensors.size() + ctx->vision_model.tensors.size());
+    static size_t scr0_size = get_scr_buf_req_by_size(ctx->text_model.tensors.size() + ctx->vision_model.tensors.size(), N);
     static void *scr0 = malloc(scr0_size);
 
     struct ggml_tensor *input_ids = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, N);
@@ -1056,7 +1071,7 @@ bool clip_image_encode(
     struct ggml_cgraph gf = {};
     gf.n_threads = n_threads;
 
-    static size_t scr0_size = get_scr_buf_req_by_size(ctx->text_model.tensors.size() + ctx->vision_model.tensors.size());
+    static size_t scr0_size = get_scr_buf_req_by_size(ctx->text_model.tensors.size() + ctx->vision_model.tensors.size(), num_positions);
     static void *scr0 = malloc(scr0_size);
 
     struct ggml_tensor *inp = ggml_new_tensor_4d(ctx0, GGML_TYPE_F32, image_size, image_size, 3, 1);
