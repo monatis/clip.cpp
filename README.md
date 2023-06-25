@@ -30,7 +30,7 @@ git clone https://huggingface.co/laion/CLIP-ViT-B-32-laion2B-s34B-b79K
 2. Clone this repository:
 
 ```shell
-git clone https://github.com/monatis.clip.cpp.git
+git clone --recurse-submodules https://github.com/monatis/clip.cpp.git
 
 cd clip.cpp/models
 ```
