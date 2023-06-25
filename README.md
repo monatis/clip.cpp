@@ -23,13 +23,28 @@ You can convert CLIP models from OpenAI and LAION in Transformers format. Appare
 
 ```shell
 git lfs init
+
 git clone https://huggingface.co/laion/CLIP-ViT-B-32-laion2B-s34B-b79K
 ```
 
-2. Use `models/convert_hf_to_ggml.py` to convert it to GGML format.
+2. Clone this repository:
 
 ```shell
-python convert_hf_to_ggml.py CLIP-ViT-B-32-laion2B-s34B-b79K 1
+git clone https://github.com/monatis.clip.cpp.git
+
+cd clip.cpp/models
+```
+
+3. You need to install pytorch and transformers packages if you haven't already. Otherwise, you can skip this step:
+
+```shell
+pip install -r requirements.txt
+```
+
+4. Use `models/convert_hf_to_ggml.py` to convert it to GGML format:
+
+```shell
+python convert_hf_to_ggml.py ../../CLIP-ViT-B-32-laion2B-s34B-b79K 1
 ```
 
 The output `ggml-model-f16.bin` file is in the model directory specified in the command above.
