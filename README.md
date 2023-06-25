@@ -34,6 +34,9 @@ python convert_hf_to_ggml.py CLIP-ViT-B-32-laion2B-s34B-b79K 1
 
 The output `ggml-model-f16.bin` file is in the model directory specified in the command above.
 
+## Preconverted Models
+Preconverted Models can be found in [HuggingFace Repositories tagged with `clip.cpp`](https://huggingface.co/models?other=clip.cpp).
+
 ## Building
 ```shell
 git clone --recurse-submodules https://github.com/monatis/clip.cpp.git
