@@ -16,6 +16,12 @@ This repo is aimed at powering useful applications based on such models on compu
 ## Note about image preprocessing
 PIL uses a two-pass convolutions-based bicubic interpolation in resizing with antialiasing applied. In Pytorch, antialiasing is optional. It needs some extra attention to implement this preprocessing logic that matches their results numerically. However, I found that linear interpolation is also good enough for both comparison of different embeddings from this implementation and also comparison of an embedding from this implementation and another one from Transformers. So let's use it until we craft a proper bicubic interpolation.
 
+
+## Preconverted Models
+Preconverted Models can be found in [HuggingFace Repositories tagged with `clip.cpp`](https://huggingface.co/models?other=clip.cpp).
+If you want to do conversion yourself for some reason, see below for how.
+Otherwise, download a model of your choice from the link above and then feel free to the building section.
+
 ## Model conversion
 You can convert CLIP models from OpenAI and LAION in Transformers format. Apparently, LAION's models outperform OpenAI models in several benchmarks, so they are recommended.
 
@@ -48,9 +54,6 @@ python convert_hf_to_ggml.py ../../CLIP-ViT-B-32-laion2B-s34B-b79K 1
 ```
 
 The output `ggml-model-f16.bin` file is in the model directory specified in the command above.
-
-## Preconverted Models
-Preconverted Models can be found in [HuggingFace Repositories tagged with `clip.cpp`](https://huggingface.co/models?other=clip.cpp).
 
 ## Building
 ```shell
