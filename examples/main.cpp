@@ -49,7 +49,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    clip_image_preprocess(&img0, &img_res);
+    clip_image_preprocess(ctx, &img0, &img_res);
 
     const int64_t t_image_encode_us = ggml_time_us();
 

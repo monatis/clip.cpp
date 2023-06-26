@@ -36,7 +36,7 @@ int main(int argc, char **argv)
 
     const int vec_dim = ctx->vision_model.hparams.projection_dim;
 
-    clip_image_preprocess(&img0, &img_res);
+    clip_image_preprocess(ctx, &img0, &img_res);
 
     float img_vec[vec_dim];
     if (!clip_image_encode(ctx, params.n_threads, img_res, img_vec))
