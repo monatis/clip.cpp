@@ -130,7 +130,7 @@ int main(int argc, char** argv) {
             }
 
             clip_image_f32 img_res;
-            clip_image_preprocess(&img0, &img_res);
+            clip_image_preprocess(clip_ctx, &img0, &img_res);
 
             std::vector<float> vec(vec_dim);
             if (!clip_image_encode(clip_ctx, params.n_threads, img_res, vec.data())) {
