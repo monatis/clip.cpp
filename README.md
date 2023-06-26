@@ -20,7 +20,7 @@ PIL uses a two-pass convolutions-based bicubic interpolation in resizing with an
 ## Preconverted Models
 Preconverted Models can be found in [HuggingFace Repositories tagged with `clip.cpp`](https://huggingface.co/models?other=clip.cpp).
 If you want to do conversion yourself for some reason, see below for how.
-Otherwise, download a model of your choice from the link above and then feel free to the building section.
+Otherwise, download a model of your choice from the link above and then feel free to jump to the building section.
 
 ## Model conversion
 You can convert CLIP models from OpenAI and LAION in Transformers format. Apparently, LAION's models outperform OpenAI models in several benchmarks, so they are recommended.
