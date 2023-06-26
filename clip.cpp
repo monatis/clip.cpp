@@ -20,18 +20,25 @@ size_t get_mem_req_by_size(const size_t n_tensors, const int n_image_positions)
     size_t mb = 1024 * 1024;
     switch (n_tensors)
     {
-    case 397: // base
-        if (n_image_positions == 50)
+    case 397:                        // base
+        if (n_image_positions == 50) // patch size = 32
         {
             return 8 * mb;
         }
-        else
+        else // patch size = 16
         {
             return 16 * mb;
         }
-    case 589:
-        return 16 * mb;
-    case 909:
+    case 589:                         // large
+        if (n_image_positions == 257) // input image size = 224
+        {
+            return 16 * mb;
+        }
+        else // input image size = 336
+        {
+            return 40 * mb;
+        }
+    case 909: // huge
         return 24 * mb;
     default:
         fprintf(stderr, "%s: Unrecognized number of tensors: %d. Check if you pass the correct model file\n", __func__, n_tensors);
@@ -44,7 +51,7 @@ size_t get_scr_buf_req_by_size(const size_t n_tensors, const int n_positions)
     size_t mb = 1024 * 1024;
     switch (n_tensors)
     {
-    case 397: // base
+    case 397:
         if (n_positions <= 50)
         {
             return 16 * mb;
@@ -54,7 +61,14 @@ size_t get_scr_buf_req_by_size(const size_t n_tensors, const int n_positions)
             return 64 * mb;
         }
     case 589:
-        return 64 * mb;
+        if (n_positions <= 257)
+        {
+            return 64 * mb;
+        }
+        else
+        {
+            return 128 * mb;
+        }
     case 909:
         return 96 * mb;
     default:
@@ -173,19 +187,19 @@ bool clip_image_load_from_file(const std::string &fname, clip_image_u8 &img)
 
 // normalize: x = (x - mean) / std
 // TODO: implement bicubic interpolation instead of linear.
-bool clip_image_preprocess(const clip_image_u8 *img, clip_image_f32 *res)
+bool clip_image_preprocess(const clip_ctx *ctx, const clip_image_u8 *img, clip_image_f32 *res)
 {
     const int nx = img->nx;
     const int ny = img->ny;
 
-    const int nx2 = 224;
-    const int ny2 = 224;
+    const int nx2 = ctx->vision_model.hparams.image_size;
+    const int ny2 = ctx->vision_model.hparams.image_size;
 
     res->nx = nx2;
     res->ny = ny2;
     res->data.resize(3 * nx2 * ny2);
 
-    const float scale = std::max(nx, ny) / 224.0f;
+    const float scale = std::max(nx, ny) / (float)ctx->vision_model.hparams.image_size;
 
     const int nx3 = int(nx / scale + 0.5f);
     const int ny3 = int(ny / scale + 0.5f);
@@ -1343,7 +1357,7 @@ bool clip_compare_text_and_image(clip_ctx *ctx, int n_threads, std::string &text
     // preprocess and encode image
     clip_image_f32 img_res;
 
-    if (!clip_image_preprocess(&image, &img_res))
+    if (!clip_image_preprocess(ctx, &image, &img_res))
     {
         return false;
     }
