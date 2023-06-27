@@ -145,6 +145,7 @@ int main(int argc, char **argv)
 
     const int vec_dim = ctx->text_model.hparams.projection_dim;
 
+    // allocate memory for text vectors
     float *txt_vecs = (float *)malloc(n_labels * vec_dim * sizeof(float));
     if (!txt_vecs)
     {
@@ -152,27 +153,31 @@ int main(int argc, char **argv)
     }
 
     ggml_time_init();
+
     // walk through directory names and encode them as texts
-    int counter = 0;
+
+    int label_idx = 0;
+
     const int64_t t_start_encode_texts = ggml_time_us();
+
     for (const auto &entry : result)
     {
         auto tokens = clip_tokenize(ctx, entry.first);
-        if (!clip_text_encode(ctx, 4, tokens, txt_vecs + counter * vec_dim))
+        if (!clip_text_encode(ctx, 4, tokens, txt_vecs + label_idx * vec_dim))
         {
-            printf("%s: Could not encode the label at index %d: %s\n", __func__, counter, entry.first.c_str());
+            printf("%s: Could not encode the label at index %d: %s\n", __func__, label_idx, entry.first.c_str());
             return 1;
         }
 
-        counter += 1;
+        label_idx += 1;
     }
+
     const int64_t t_end_encode_texts = ggml_time_us();
 
-    printf("%d texts encoded in %8.2f ms\n", n_labels, (t_end_encode_texts - t_start_encode_texts) / 1000.0f);
-
-    counter = 0;
-    float total_acc1_score = 0.0f;
-    float total_acc5_score = 0.0f;
+    label_idx = 0;                 // reset label index
+    int n_total_items = 0;         // total number of images processed
+    float total_acc1_score = 0.0f; // total accuracy at 1 for the intire dataset
+    float total_acc5_score = 0.0f; // total accuracy at 5 in intitre dataset
     float img_vec[vec_dim];
     float similarities[n_labels];
     float sorted_scores[n_labels];
@@ -180,11 +185,15 @@ int main(int argc, char **argv)
     clip_image_u8 img;
     clip_image_f32 img_res;
 
+    int64_t t_start_encode_images = ggml_time_us();
+
     for (auto &entry : result)
     {
         int n_items = 0;
         int n_acc1 = 0;
         int n_acc5 = 0;
+
+        int64_t t_start_encode_images = ggml_time_us();
 
         for (auto &file_path : entry.second)
         {
@@ -209,13 +218,13 @@ int main(int argc, char **argv)
             softmax_with_sorting(similarities, n_labels, sorted_scores, indices);
             for (int j = 0; j < 5; j++)
             {
-                if (j == 0 && indices[j] == counter)
+                if (j == 0 && indices[j] == label_idx)
                 {
                     n_acc1 += 1;
                     n_acc5 += 1;
                     break;
                 }
-                else if (indices[j] == counter)
+                else if (indices[j] == label_idx)
                 {
                     n_acc5 += 1;
                     break;
@@ -223,6 +232,7 @@ int main(int argc, char **argv)
             }
 
             n_items += 1;
+            n_total_items += 1;
         }
 
         float acc1_score = (float)n_acc1 / n_items;
@@ -231,10 +241,16 @@ int main(int argc, char **argv)
         total_acc5_score += acc5_score;
         printf("%s: acc@1 = %2.4f - acc@5 = %2.4f\n", entry.first.c_str(), acc1_score, acc5_score);
 
-        counter += 1;
+        label_idx += 1;
     }
 
-    printf("total: acc@1 %2.4f - acc@5: %2.4f\n", total_acc1_score / (float)n_labels, total_acc5_score / (float)n_labels);
+    int64_t t_end_encode_images = ggml_time_us();
+
+    printf("total: acc@1 %2.4f - acc@5: %2.4f\n\n", total_acc1_score / (float)n_labels, total_acc5_score / (float)n_labels);
+
+    printf("Timings:\n");
+    printf("%d texts encoded in %8.2f ms\n", n_labels, (t_end_encode_texts - t_start_encode_texts) / 1000.0f);
+    printf("%d images encoded in %8.2f ms\n", n_total_items, (t_end_encode_images - t_start_encode_images) / 1000.0f);
 
     clip_free(ctx);
     return 0;
