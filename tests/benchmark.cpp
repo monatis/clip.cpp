@@ -246,7 +246,7 @@ int main(int argc, char **argv)
 
     int64_t t_end_encode_images = ggml_time_us();
 
-    printf("total: acc@1 %2.4f - acc@5: %2.4f\n\n", total_acc1_score / (float)n_labels, total_acc5_score / (float)n_labels);
+    printf("total: acc@1 = %2.4f - acc@5 = %2.4f\n\n", total_acc1_score / (float)n_labels, total_acc5_score / (float)n_labels);
 
     printf("Timings:\n");
     printf("%d texts encoded in %8.2f ms\n", n_labels, (t_end_encode_texts - t_start_encode_texts) / 1000.0f);
