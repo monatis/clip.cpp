@@ -211,5 +211,8 @@ if (BUILD_SHARED_LIBS)
     target_compile_definitions(clip PRIVATE CLIP_SHARED CLIP_BUILD)
 endif()
 
-add_subdirectory(examples)
 add_subdirectory(models)
+
+# TODO: build examples and tests conditionally
+add_subdirectory(examples)
+add_subdirectory(tests)
