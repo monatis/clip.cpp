@@ -120,7 +120,7 @@ You can use the benchmarking utility to compare the performances of different ch
 ```
 usage: ./bin/benchmark <model_path> <images_dir> <num_images_per_dir> [output_file]                                     
                                                                                                                         
-image_path: path to CLIP model in GGML format                                                                           
+model_path: path to CLIP model in GGML format                                                                           
 images_dir: path to a directory of images where images are organized into subdirectories named classes                  
 num_images_per_dir: maximum number of images to read from each one of subdirectories. if 0, read all files              
 output_file: optional. if specified, dump the output to this file instead of stdout                                     

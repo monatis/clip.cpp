@@ -115,7 +115,7 @@ int main(int argc, char **argv)
     if (argc != 4 && argc != 5)
     {
         printf("usage: %s <model_path> <images_dir> <num_images_per_dir> [output_file]\n\n", argv[0]);
-        printf("image_path: path to CLIP model in GGML format\n");
+        printf("model_path: path to CLIP model in GGML format\n");
         printf("images_dir: path to a directory of images where images are organized into subdirectories named classes\n");
         printf("num_images_per_dir: maximum number of images to read from each one of subdirectories. if 0, read all files\n");
         printf("output_file: optional. if specified, dump the output to this file instead of stdout\n");
