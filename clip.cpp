@@ -799,7 +799,7 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
 
     if (verbosity >= 1)
     {
-        printf("%s: model loadded\n\n", __func__);
+        printf("%s: model loaded\n\n", __func__);
     }
 
     return new_clip;
