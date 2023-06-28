@@ -112,18 +112,31 @@ std::map<std::string, std::vector<std::string>> get_dir_keyed_files(const std::s
 
 int main(int argc, char **argv)
 {
-    if (argc != 4)
+    if (argc != 4 && argc != 5)
     {
-        printf("usage: %s <model_path> <images_dir> <num_images_per_dir>\n\n", argv[0]);
+        printf("usage: %s <model_path> <images_dir> <num_images_per_dir> [output_file]\n\n", argv[0]);
         printf("image_path: path to CLIP model in GGML format\n");
         printf("images_dir: path to a directory of images where images are organized into subdirectories named classes\n");
         printf("num_images_per_dir: maximum number of images to read from each one of subdirectories. if 0, read all files\n");
+        printf("output_file: optional. if specified, dump the output to this file instead of stdout\n");
         return 1;
     }
 
     std::string model_path = argv[1];
     std::string dir_path = argv[2];
     uint32_t max_files_per_dir = std::stoi(argv[3]); // Example: Limit to 100 files per directory
+    FILE *fout = stdout;
+    if (argc == 5)
+    {
+        fout = fopen(argv[4], "w");
+        if (fout == NULL)
+        {
+            printf("%s: cannot open file %s\n", __func__, argv[4]);
+            return 1;
+        }
+
+        printf("%s: dumping benchmarking results to %s...\n", __func__, argv[4]);
+    }
 
     auto result = get_dir_keyed_files(dir_path, max_files_per_dir);
 
@@ -134,7 +147,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    printf("%s: %d directories found\n", __func__, n_labels);
+    fprintf(fout, "%s: %d directories found in %s\n\n", __func__, n_labels, dir_path.c_str());
 
     auto ctx = clip_model_load(model_path.c_str(), 2);
     if (!ctx)
@@ -184,6 +197,10 @@ int main(int argc, char **argv)
     int indices[n_labels];
     clip_image_u8 img;
     clip_image_f32 img_res;
+
+    // print table headers
+    fprintf(fout, "| class name           | acc@1  | acc@5  |\n");
+    fprintf(fout, "| -------------------- | ------ | ------ |\n");
 
     int64_t t_start_encode_images = ggml_time_us();
 
@@ -239,19 +256,30 @@ int main(int argc, char **argv)
         float acc5_score = (float)n_acc5 / n_items;
         total_acc1_score += acc1_score;
         total_acc5_score += acc5_score;
-        printf("%s: acc@1 = %2.4f - acc@5 = %2.4f\n", entry.first.c_str(), acc1_score, acc5_score);
+        // printf("%s: acc@1 = %2.4f - acc@5 = %2.4f\n", entry.first.c_str(), acc1_score, acc5_score);
+        fprintf(fout, "| %-*s ", 20, entry.first.c_str());
+        fprintf(fout, "| %2.4f | %2.4f |\n", acc1_score, acc5_score);
 
         label_idx += 1;
     }
 
     int64_t t_end_encode_images = ggml_time_us();
 
-    printf("total: acc@1 = %2.4f - acc@5 = %2.4f\n\n", total_acc1_score / (float)n_labels, total_acc5_score / (float)n_labels);
+    fprintf(fout, "| total                | %2.4f | %2.4f |\n\n", total_acc1_score / (float)n_labels, total_acc5_score / (float)n_labels);
 
-    printf("Timings:\n");
-    printf("%d texts encoded in %8.2f ms\n", n_labels, (t_end_encode_texts - t_start_encode_texts) / 1000.0f);
-    printf("%d images encoded in %8.2f ms\n", n_total_items, (t_end_encode_images - t_start_encode_images) / 1000.0f);
+    // print timings
+    float total_text_duration = (t_end_encode_texts - t_start_encode_texts) / 1000.0f;
+    float total_image_duration = (t_end_encode_images - t_start_encode_images) / 1000.0f;
+    fprintf(fout, "# Timings\n");
+    fprintf(fout, "- %d texts encoded in %8.2f ms (%8.2f ms per text)\n", n_labels, total_text_duration, total_text_duration / (float)n_labels);
+    fprintf(fout, "- %d images encoded in %8.2f ms (%8.2f ms per image)\n", n_total_items, total_image_duration, total_image_duration / (float)n_total_items);
+
+    if (fout != stdout)
+    {
+        fclose(fout);
+    }
 
     clip_free(ctx);
+
     return 0;
 }
