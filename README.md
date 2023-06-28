@@ -13,6 +13,8 @@ It's also a part of Stable Diffusion and and the recently emerging field of larg
 This repo is aimed at powering useful applications based on such models on computation- or memory-constraint devices.
 4-bit quantized CLIP is only 85.6 MB!
 
+clip.cpp also has a short startup time compared to large ML frameworks, which makes it suitable for serverless deployments where the cold start is an issue.
+
 ## Note about image preprocessing
 PIL uses a two-pass convolutions-based bicubic interpolation in resizing with antialiasing applied. In Pytorch, antialiasing is optional. It needs some extra attention to implement this preprocessing logic that matches their results numerically. However, I found that linear interpolation is also good enough for both comparison of different embeddings from this implementation and also comparison of an embedding from this implementation and another one from Transformers. So let's use it until we craft a proper bicubic interpolation.
 
@@ -112,8 +114,22 @@ Options:  -h, --help: Show this message and exit
 The CLI args are the same as in `main`,
 but you must specify multiple `--text` arguments to specify the labels.
 
-## TODO
+## Benchmarking
+You can use the benchmarking utility to compare the performances of different checkpoints and quantization types.
+
+```
+usage: ./bin/benchmark <model_path> <images_dir> <num_images_per_dir> [output_file]                                     
+                                                                                                                        
+image_path: path to CLIP model in GGML format                                                                           
+images_dir: path to a directory of images where images are organized into subdirectories named classes                  
+num_images_per_dir: maximum number of images to read from each one of subdirectories. if 0, read all files              
+output_file: optional. if specified, dump the output to this file instead of stdout                                     
+```
+
+
+TODO: share benchmarking results for a common dataset later on.
+
+## Future Work
 - [ ] Support `text-only`, `image-only` and `both` (current) options when exporting, and modify model loading logic accordingly. It might be relevant to use a single modality in certain cases, as in large multimodal models, or building and/or searching for semantic image search.
 - [ ] Seperate memory buffers for text and image models, as their memory requirements are different.
 - [ ] Implement proper bicubic interpolation (PIL uses a convolutions-based algorithm, and it's more stable than affine transformations).
-- [ ] Do benchmarks and announce the results.
