@@ -3,6 +3,11 @@ project("CLIP.cpp" C CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+if (NOT XCODE AND NOT MSVC AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+endif()
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 #
@@ -28,6 +33,14 @@ option(CLIP_SANITIZE_UNDEFINED     "CLIP: enable undefined sanitizer"           
 option(CLIP_AVX                    "CLIP: enable AVX"                                     ON)
 option(CLIP_AVX2                   "CLIP: enable AVX2"                                    ON)
 option(CLIP_FMA                    "CLIP: enable FMA"                                     ON)
+option(CLIP_AVX512                 "clip: enable AVX512"                                  OFF)
+option(CLIP_AVX512_VBMI            "clip: enable AVX512-VBMI"                             OFF)
+option(CLIP_AVX512_VNNI            "clip: enable AVX512-VNNI"                             OFF)
+# in MSVC F16C is implied with AVX2/AVX512
+if (NOT MSVC)
+    option(CLIP_F16C               "clip: enable F16C"                                    ON)
+endif()
+
 
 # 3rd party libs
 option(CLIP_ACCELERATE             "CLIP: enable Accelerate framework"                    ON)
@@ -130,6 +143,8 @@ if (CLIP_LTO)
     endif()
 endif()
 
+
+
 # Architecture specific
 # TODO: probably these flags need to be tweaked on some architectures
 #       feel free to update the Makefile for your architecture and send a pull request or issue
@@ -162,13 +177,32 @@ if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm" OR ${CMAKE_SYSTEM_PROCESSOR} MATCHES
 elseif (${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(x86_64|i686|AMD64)$")
     message(STATUS "x86 detected")
     if (MSVC)
-        if (CLIP_AVX2)
-            add_compile_options(/arch:AVX2)
+        if (CLIP_AVX512)
+            add_compile_options($<$<COMPILE_LANGUAGE:C>:/arch:AVX512>)
+            add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/arch:AVX512>)
+            # MSVC has no compile-time flags enabling specific
+            # AVX512 extensions, neither it defines the
+            # macros corresponding to the extensions.
+            # Do it manually.
+            if (CLIP_AVX512_VBMI)
+                add_compile_definitions($<$<COMPILE_LANGUAGE:C>:__AVX512VBMI__>)
+                add_compile_definitions($<$<COMPILE_LANGUAGE:CXX>:__AVX512VBMI__>)
+            endif()
+            if (CLIP_AVX512_VNNI)
+                add_compile_definitions($<$<COMPILE_LANGUAGE:C>:__AVX512VNNI__>)
+                add_compile_definitions($<$<COMPILE_LANGUAGE:CXX>:__AVX512VNNI__>)
+            endif()
+        elseif (CLIP_AVX2)
+            add_compile_options($<$<COMPILE_LANGUAGE:C>:/arch:AVX2>)
+            add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/arch:AVX2>)
         elseif (CLIP_AVX)
-            add_compile_options(/arch:AVX)
+            add_compile_options($<$<COMPILE_LANGUAGE:C>:/arch:AVX>)
+            add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/arch:AVX>)
         endif()
     else()
-        add_compile_options(-mf16c)
+        if (CLIP_F16C)
+            add_compile_options(-mf16c)
+        endif()
         if (CLIP_FMA)
             add_compile_options(-mfma)
         endif()
@@ -178,11 +212,23 @@ elseif (${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(x86_64|i686|AMD64)$")
         if (CLIP_AVX2)
             add_compile_options(-mavx2)
         endif()
+        if (CLIP_AVX512)
+            add_compile_options(-mavx512f)
+            add_compile_options(-mavx512bw)
+        endif()
+        if (CLIP_AVX512_VBMI)
+            add_compile_options(-mavx512vbmi)
+        endif()
+        if (CLIP_AVX512_VNNI)
+            add_compile_options(-mavx512vnni)
+        endif()
     endif()
 else()
     # TODO: support PowerPC
     message(STATUS "Unknown architecture")
 endif()
+
+
 
 #
 # Build libraries

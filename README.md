@@ -74,7 +74,8 @@ make
 
 And the binaries are in the `./bin` directory.
 
-TODO: Detail other build optimizations.
+**Note**: Some Mac devices report `x86_64` instead of `arm64` architecture. If this is the case see [here](https://github.com/ggerganov/whisper.cpp/issues/66#issuecomment) for a discussion.
+I couldn't reproduce it on my Macbook M2 pro so cannot help further. If you know a solution that I can include in `CMakeLists.txt` please ping me [here](https://github.com/monatis/clip.cpp/issues/24).
 
 ## Quantization
 `clip.cpp` currently supports q4_0 and q4_1 quantization types.
