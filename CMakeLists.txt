@@ -16,6 +16,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # general
 option(CLIP_STATIC                 "CLIP: static link libraries"                          OFF)
+option(CLIP_NO_EXAMPLES                 "CLIP: do not build examples"                          OFF)
+option(CLIP_NO_TESTS                 "CLIP: do not build tests"                          OFF)
 option(CLIP_NATIVE                 "CLIP: enable -march=native flag"                      ON)
 option(CLIP_LTO                    "CLIP: enable link time optimization"                  OFF)
 
@@ -259,6 +261,10 @@ endif()
 
 add_subdirectory(models)
 
-# TODO: build examples and tests conditionally
-add_subdirectory(examples)
-add_subdirectory(tests)
+if (NOT CLIP_NO_EXAMPLES)
+    add_subdirectory(examples)
+endif()
+
+if (NOT CLIP_NO_TESTS)
+    add_subdirectory(tests)
+endif()
