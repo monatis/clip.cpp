@@ -1,6 +1,7 @@
 // zero-shot image labeling example
 
 #include "clip.h"
+#include "common-clip.h"
 
 int main(int argc, char **argv)
 {

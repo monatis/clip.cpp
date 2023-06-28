@@ -1,4 +1,7 @@
+// main example to demonstrate usage of the API
+
 #include "clip.h"
+#include "common-clip.h"
 
 int main(int argc, char **argv)
 {
