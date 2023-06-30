@@ -1549,7 +1549,7 @@ bool clip_image_batch_encode(
 
     ggml_set_zero(embeddings);
 
-    // TODO: correct thisconcat op
+    // TODO: correct this concat op
     // for (int b = 0; b < batch_size; b++)
     {
         embeddings = ggml_acc(ctx0, embeddings, model.class_embedding, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], 0);
