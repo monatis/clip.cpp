@@ -23,7 +23,7 @@ size_t get_mem_req_by_size(const size_t n_tensors, const int n_image_positions)
     case 397:                        // base
         if (n_image_positions == 50) // patch size = 32
         {
-            return 16 * mb;
+            return 32 * mb;
         }
         else // patch size = 16
         {
@@ -54,7 +54,7 @@ size_t get_scr_buf_req_by_size(const size_t n_tensors, const int n_positions)
     case 397:
         if (n_positions <= 50)
         {
-            return 16 * mb;
+            return 512 * mb;
         }
         else
         {
@@ -1545,17 +1545,16 @@ bool clip_image_batch_encode(
 
     // concat class_embeddings and patch_embeddings
     struct ggml_tensor *embeddings = ggml_new_tensor_3d(ctx0, GGML_TYPE_F32, hidden_size, num_positions, batch_size);
-    /*
+
     ggml_set_zero(embeddings);
     for (int b = 0; b < batch_size; b++)
     {
-        embeddings = ggml_acc(ctx0, embeddings, model.class_embedding, embeddings->nb[1] / batch_size, embeddings->nb[2] / batch_size, embeddings->nb[3] / batch_size, b * (ggml_nbytes(embeddings) / batch_size));
-        embeddings = ggml_acc(ctx0, embeddings, inp, embeddings->nb[1] / batch_size, embeddings->nb[2] / batch_size, embeddings->nb[3] / batch_size, ggml_element_size(model.class_embedding) * hidden_size);
+        embeddings = ggml_acc(ctx0, embeddings, model.class_embedding, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3] / batch_size, 0);
+        embeddings = ggml_acc(ctx0, embeddings, inp, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3] / batch_size, ggml_element_size(model.class_embedding) * hidden_size);
     }
-    */
 
-    embeddings = ggml_acc(ctx0, embeddings, model.class_embedding, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], 0);
-    embeddings = ggml_acc(ctx0, embeddings, inp, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], ggml_element_size(model.class_embedding) * hidden_size);
+    // embeddings = ggml_acc(ctx0, embeddings, model.class_embedding, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], 0);
+    // embeddings = ggml_acc(ctx0, embeddings, inp, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], ggml_element_size(model.class_embedding) * hidden_size);
 
     struct ggml_tensor *positions = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, num_positions);
     for (int i = 0; i < num_positions; i++)
@@ -1575,10 +1574,6 @@ bool clip_image_batch_encode(
                                        embeddings),
                               ggml_repeat(ctx0, model.pre_ln_b, embeddings));
     }
-
-    struct ggml_tensor *temp_w = ggml_new_tensor_4d(ctx0, model.layers[0].q_w->type, hidden_size, hidden_size, batch_size, 1);
-    struct ggml_tensor *temp_i = ggml_new_tensor_4d(ctx0, model.layers[0].ff_i_w->type, hidden_size, n_intermediate, batch_size, 1);
-    struct ggml_tensor *temp_o = ggml_new_tensor_4d(ctx0, model.layers[0].ff_o_w->type, n_intermediate, hidden_size, batch_size, 1);
 
     // loop over layers
     for (int il = 0; il < n_layer; il++)
@@ -1604,7 +1599,7 @@ bool clip_image_batch_encode(
         {
 
             struct ggml_tensor *Q = ggml_add(ctx0, ggml_repeat(ctx0, model.layers[il].q_b, cur),
-                                             ggml_mul_mat(ctx0, ggml_repeat(ctx0, model.layers[il].q_w, temp_w),
+                                             ggml_mul_mat(ctx0, model.layers[il].q_w,
                                                           cur));
 
             Q = ggml_scale_inplace(ctx0, Q, ggml_new_f32(ctx0, 1.0f / sqrt((float)d_head)));
@@ -1613,7 +1608,7 @@ bool clip_image_batch_encode(
             Q = ggml_reshape_3d(ctx0, Q, d_head, num_positions, n_head * batch_size);
 
             struct ggml_tensor *K = ggml_add(ctx0, ggml_repeat(ctx0, model.layers[il].k_b, cur),
-                                             ggml_mul_mat(ctx0, ggml_repeat(ctx0, model.layers[il].k_w, temp_w),
+                                             ggml_mul_mat(ctx0, model.layers[il].k_w,
                                                           cur));
 
             K = ggml_reshape_4d(ctx0, K, d_head, n_head, num_positions, batch_size);
@@ -1621,7 +1616,7 @@ bool clip_image_batch_encode(
             K = ggml_reshape_3d(ctx0, K, d_head, num_positions, n_head * batch_size);
 
             struct ggml_tensor *V = ggml_add(ctx0, ggml_repeat(ctx0, model.layers[il].v_b, cur),
-                                             ggml_mul_mat(ctx0, ggml_repeat(ctx0, model.layers[il].v_w, temp_w),
+                                             ggml_mul_mat(ctx0, model.layers[il].v_w,
                                                           cur));
 
             V = ggml_reshape_4d(ctx0, V, d_head, n_head, num_positions, batch_size);
@@ -1642,7 +1637,7 @@ bool clip_image_batch_encode(
         // attention output
         cur = ggml_add(ctx0,
                        ggml_repeat(ctx0, model.layers[il].o_b, cur),
-                       ggml_mul_mat(ctx0, ggml_repeat(ctx0, model.layers[il].o_w, temp_w),
+                       ggml_mul_mat(ctx0, model.layers[il].o_w,
                                     cur));
 
         // re-add the layer input, e.g., residual
@@ -1661,7 +1656,7 @@ bool clip_image_batch_encode(
                            ggml_repeat(ctx0, model.layers[il].ln_2_b, cur));
         }
 
-        cur = ggml_mul_mat(ctx0, ggml_repeat(ctx0, model.layers[il].ff_i_w, temp_i), cur);
+        cur = ggml_mul_mat(ctx0, model.layers[il].ff_i_w, cur);
         cur = ggml_add(ctx0,
                        ggml_repeat(ctx0, model.layers[il].ff_i_b, cur),
                        cur);
@@ -1675,7 +1670,7 @@ bool clip_image_batch_encode(
             cur = ggml_gelu_quick_inplace(ctx0, cur);
         }
 
-        cur = ggml_mul_mat(ctx0, ggml_repeat(ctx0, model.layers[il].ff_o_w, temp_o), cur);
+        cur = ggml_mul_mat(ctx0, model.layers[il].ff_o_w, cur);
         cur = ggml_add(ctx0,
                        ggml_repeat(ctx0, model.layers[il].ff_o_b, cur),
                        cur);
