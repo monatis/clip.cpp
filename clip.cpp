@@ -1513,10 +1513,10 @@ bool clip_image_batch_encode(
     static size_t scr0_size = get_scr_buf_req_by_size(ctx->text_model.tensors.size() + ctx->vision_model.tensors.size(), num_positions);
     static void *scr0 = malloc(scr0_size);
 
-    struct ggml_tensor *inp = ggml_new_tensor_4d(ctx0, GGML_TYPE_F32, image_size, image_size, 3, batch_size);
+    struct ggml_tensor *inp_raw = ggml_new_tensor_4d(ctx0, GGML_TYPE_F32, image_size, image_size, 3, batch_size);
 
     {
-        float *data = (float *)ggml_get_data(inp);
+        float *data = (float *)ggml_get_data(inp_raw);
 
         const int nx = imgs[0].nx;
         const int ny = imgs[0].ny;
@@ -1532,29 +1532,30 @@ bool clip_image_batch_encode(
                 {
                     for (int x = 0; x < nx; x++)
                     {
-                        data[(b * k * n) + k * n + y * nx + x] = imgs[b].data[3 * (y * nx + x) + k];
+                        data[(b * 3 * n) + k * n + y * nx + x] = imgs[b].data[3 * (y * nx + x) + k];
                     }
                 }
             }
         }
     }
 
-    inp = ggml_conv_2d_sk_p0(ctx0, model.patch_embeddings, inp);
+    struct ggml_tensor *inp = ggml_conv_2d_sk_p0(ctx0, model.patch_embeddings, inp_raw);
     inp = ggml_reshape_3d(ctx0, inp, num_patches, hidden_size, batch_size);
     inp = ggml_cont(ctx0, ggml_permute(ctx0, inp, 1, 0, 2, 3));
+    ggml_set_name(inp, "check");
 
     // concat class_embeddings and patch_embeddings
     struct ggml_tensor *embeddings = ggml_new_tensor_3d(ctx0, GGML_TYPE_F32, hidden_size, num_positions, batch_size);
 
     ggml_set_zero(embeddings);
-    for (int b = 0; b < batch_size; b++)
-    {
-        embeddings = ggml_acc(ctx0, embeddings, model.class_embedding, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3] / batch_size, 0);
-        embeddings = ggml_acc(ctx0, embeddings, inp, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3] / batch_size, ggml_element_size(model.class_embedding) * hidden_size);
-    }
 
-    // embeddings = ggml_acc(ctx0, embeddings, model.class_embedding, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], 0);
-    // embeddings = ggml_acc(ctx0, embeddings, inp, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], ggml_element_size(model.class_embedding) * hidden_size);
+    // TODO: correct thisconcat op
+    // for (int b = 0; b < batch_size; b++)
+    {
+        embeddings = ggml_acc(ctx0, embeddings, model.class_embedding, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], 0);
+        embeddings = ggml_acc(ctx0, embeddings, inp, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], ggml_element_size(model.class_embedding) * hidden_size);
+    }
+    ggml_set_name(embeddings, "check");
 
     struct ggml_tensor *positions = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, num_positions);
     for (int i = 0; i < num_positions; i++)
@@ -1757,6 +1758,7 @@ bool clip_image_batch_encode(
         };
 
         auto *t = ggml_get_tensor(ctx0, "check");
+        // auto t = inp_raw;
         if (t->type == GGML_TYPE_F32)
         {
             print_t_f32(t);
