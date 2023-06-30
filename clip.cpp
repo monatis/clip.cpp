@@ -1542,20 +1542,15 @@ bool clip_image_batch_encode(
     struct ggml_tensor *inp = ggml_conv_2d_sk_p0(ctx0, model.patch_embeddings, inp_raw);
     inp = ggml_reshape_3d(ctx0, inp, num_patches, hidden_size, batch_size);
     inp = ggml_cont(ctx0, ggml_permute(ctx0, inp, 1, 0, 2, 3));
-    ggml_set_name(inp, "check");
 
     // concat class_embeddings and patch_embeddings
     struct ggml_tensor *embeddings = ggml_new_tensor_3d(ctx0, GGML_TYPE_F32, hidden_size, num_positions, batch_size);
 
     ggml_set_zero(embeddings);
+    struct ggml_tensor *temp = ggml_new_tensor_3d(ctx0, GGML_TYPE_F32, hidden_size, 1, batch_size);
 
-    // TODO: correct this concat op
-    // for (int b = 0; b < batch_size; b++)
-    {
-        embeddings = ggml_acc(ctx0, embeddings, model.class_embedding, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], 0);
-        embeddings = ggml_acc(ctx0, embeddings, inp, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], ggml_element_size(model.class_embedding) * hidden_size);
-    }
-    ggml_set_name(embeddings, "check");
+    embeddings = ggml_acc(ctx0, embeddings, ggml_repeat(ctx0, model.class_embedding, temp), embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], 0);
+    embeddings = ggml_acc(ctx0, embeddings, inp, embeddings->nb[1], embeddings->nb[2], embeddings->nb[3], model.class_embedding->nb[1]);
 
     struct ggml_tensor *positions = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, num_positions);
     for (int i = 0; i < num_positions; i++)
@@ -1568,6 +1563,7 @@ bool clip_image_batch_encode(
     // pre-layernorm
     {
         embeddings = ggml_norm(ctx0, embeddings);
+        ggml_set_name(embeddings, "check");
 
         embeddings = ggml_add(ctx0,
                               ggml_mul(ctx0,
@@ -1707,11 +1703,10 @@ bool clip_image_batch_encode(
     embeddings = ggml_mul_mat(ctx0, model.projection, embeddings);
 
     // normalize output embeddings
+    struct ggml_tensor *embedding = ggml_get_rows(ctx0, embeddings, ggml_new_i32(ctx0, 0));
     ggml_tensor *length = ggml_sqrt(ctx0,
-                                    ggml_sum(ctx0, ggml_sqr(ctx0, embeddings)));
-    embeddings = ggml_scale_inplace(ctx0, embeddings, ggml_div(ctx0, ggml_new_f32(ctx0, 1.0f), length));
-
-    ggml_set_name(embeddings, "check");
+                                    ggml_sum(ctx0, ggml_sqr(ctx0, embedding)));
+    embeddings = ggml_scale_inplace(ctx0, embedding, ggml_div(ctx0, ggml_new_f32(ctx0, 1.0f), length));
 
     // run the computation
     ggml_build_forward_expand(&gf, embeddings);

@@ -56,7 +56,7 @@ int main(int argc, char **argv)
 
     std::vector<clip_image_f32> imgs;
     imgs.push_back(img_res);
-    imgs.push_back(img_res);
+    // imgs.push_back(img_res);
 
     const int64_t t_image_encode_us = ggml_time_us();
 
