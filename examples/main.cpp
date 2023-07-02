@@ -56,7 +56,7 @@ int main(int argc, char **argv)
 
     std::vector<clip_image_f32> imgs;
     imgs.push_back(img_res);
-    // imgs.push_back(img_res);
+    imgs.push_back(img_res);
 
     const int64_t t_image_encode_us = ggml_time_us();
 
@@ -68,7 +68,7 @@ int main(int argc, char **argv)
 
     const int64_t t_similarity_score = ggml_time_us();
 
-    float score = clip_similarity_score(txt_vec, img_vec, vec_dim);
+    float score = clip_similarity_score(txt_vec, img_vec + vec_dim, vec_dim);
     printf("%s Similarity score = %2.3f\n", __func__, score);
 
     const int64_t t_main_end_us = ggml_time_us();

@@ -1132,6 +1132,7 @@ bool clip_image_encode(
     // pre-layernorm
     {
         embeddings = ggml_norm(ctx0, embeddings);
+        ggml_set_name(embeddings, "check");
 
         embeddings = ggml_add(ctx0,
                               ggml_mul(ctx0,
@@ -1703,13 +1704,19 @@ bool clip_image_batch_encode(
     embeddings = ggml_mul_mat(ctx0, model.projection, embeddings);
 
     // normalize output embeddings
-    struct ggml_tensor *embedding = ggml_get_rows(ctx0, embeddings, ggml_new_i32(ctx0, 0));
-    ggml_tensor *length = ggml_sqrt(ctx0,
-                                    ggml_sum(ctx0, ggml_sqr(ctx0, embedding)));
-    embeddings = ggml_scale_inplace(ctx0, embedding, ggml_div(ctx0, ggml_new_f32(ctx0, 1.0f), length));
+    struct ggml_tensor *output = ggml_new_tensor_2d(ctx0, GGML_TYPE_F32, projection_dim, batch_size);
+
+    for (int b = 0; b < batch_size; b++)
+    {
+        struct ggml_tensor *embedding = ggml_get_rows(ctx0, embeddings, ggml_new_i32(ctx0, b));
+        ggml_tensor *length = ggml_sqrt(ctx0,
+                                        ggml_sum(ctx0, ggml_sqr(ctx0, embedding)));
+        embedding = ggml_scale_inplace(ctx0, embedding, ggml_div(ctx0, ggml_new_f32(ctx0, 1.0f), length));
+        output = ggml_acc(ctx0, output, embedding, output->nb[1], output->nb[2], output->nb[3], b * ggml_nbytes(embedding));
+    }
 
     // run the computation
-    ggml_build_forward_expand(&gf, embeddings);
+    ggml_build_forward_expand(&gf, output);
     ggml_graph_compute(ctx0, &gf);
 
 // print
@@ -1767,7 +1774,7 @@ bool clip_image_batch_encode(
     printf("used_mem = %zu\n", ggml_used_mem(ctx0));
 #endif
 
-    memcpy(vec, ggml_get_data_f32(embeddings), sizeof(float) * projection_dim);
+    memcpy(vec, ggml_get_data_f32(output), sizeof(float) * projection_dim * batch_size);
 
     ggml_free(ctx0);
 
