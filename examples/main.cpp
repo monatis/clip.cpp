@@ -54,21 +54,17 @@ int main(int argc, char **argv)
 
     clip_image_preprocess(ctx, &img0, &img_res);
 
-    std::vector<clip_image_f32> imgs;
-    imgs.push_back(img_res);
-    imgs.push_back(img_res);
-
     const int64_t t_image_encode_us = ggml_time_us();
 
-    float img_vec[vec_dim * 2];
-    if (!clip_image_batch_encode(ctx, params.n_threads, imgs, img_vec))
+    float img_vec[vec_dim];
+    if (!clip_image_encode(ctx, params.n_threads, img_res, img_vec))
     {
         return 1;
     }
 
     const int64_t t_similarity_score = ggml_time_us();
 
-    float score = clip_similarity_score(txt_vec, img_vec + vec_dim, vec_dim);
+    float score = clip_similarity_score(txt_vec, img_vec, vec_dim);
     printf("%s Similarity score = %2.3f\n", __func__, score);
 
     const int64_t t_main_end_us = ggml_time_us();
