@@ -15,6 +15,9 @@ This repo is aimed at powering useful applications based on such models on compu
 
 clip.cpp also has a short startup time compared to large ML frameworks, which makes it suitable for serverless deployments where the cold start is an issue.
 
+## Hot topics
+- 06/04/2023: Batch inference support for image encoding.
+
 ## Note about image preprocessing
 PIL uses a two-pass convolutions-based bicubic interpolation in resizing with antialiasing applied. In Pytorch, antialiasing is optional. It needs some extra attention to implement this preprocessing logic that matches their results numerically. However, I found that linear interpolation is also good enough for both comparison of different embeddings from this implementation and also comparison of an embedding from this implementation and another one from Transformers. So let's use it until we craft a proper bicubic interpolation.
 
