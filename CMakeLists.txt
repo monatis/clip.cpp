@@ -22,9 +22,9 @@ endif()
 
 # general
 option(CLIP_STATIC                 "CLIP: static link libraries"                          OFF)
-option(CLIP_NO_EXAMPLES            "CLIP: do not build examples"                          NOT ${CLIP_STANDALONE})
+option(CLIP_BUILD_TEST             "CLIP: build tests"                                    ${CLIP_STANDALONE})
+option(CLIP_BUILD_EXAMPLES         "CLIP: build examples"                                 ${CLIP_STANDALONE})
 option(CLIP_BUILD_IMAGE_SEARCH     "CLIP: build image-search"                             OFF)
-option(CLIP_NO_TEST                "CLIP: do not build tests"                             NOT ${CLIP_STANDALONE})
 option(CLIP_NATIVE                 "CLIP: enable -march=native flag"                      ON)
 option(CLIP_LTO                    "CLIP: enable link time optimization"                  OFF)
 
