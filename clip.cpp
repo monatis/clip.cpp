@@ -277,9 +277,9 @@ void *preprocess_image(void *arg)
 }
 
 // Function to batch-preprocess multiple images i
-void clip_image_batch_preprocess(const clip_ctx *ctx, const std::vector<clip_image_u8 *> &img_inputs, std::vector<clip_image_f32> &img_resized, const int n_threads)
+void clip_image_batch_preprocess(const clip_ctx *ctx, const std::vector<clip_image_u8 *> &img_inputs, std::vector<clip_image_f32> &imgs_resized, const int n_threads)
 {
-    GGML_ASSERT(img_inputs.size() == img_resized.size());
+    GGML_ASSERT(img_inputs.size() == imgs_resized.size());
     int num_threads = std::min(n_threads, static_cast<int>(img_inputs.size()));
     int i, t;
 
@@ -291,7 +291,7 @@ void clip_image_batch_preprocess(const clip_ctx *ctx, const std::vector<clip_ima
         // Single-threaded case
         for (i = 0; i < img_inputs.size(); i++)
         {
-            clip_image_preprocess(ctx, img_inputs[i], &img_resized[i]);
+            clip_image_preprocess(ctx, img_inputs[i], &imgs_resized[i]);
         }
     }
     else
@@ -310,7 +310,7 @@ void clip_image_batch_preprocess(const clip_ctx *ctx, const std::vector<clip_ima
             for (i = start_index; i < end_index; i++)
             {
                 imageData[i].input = img_inputs[i];
-                imageData[i].resized = &img_resized[i];
+                imageData[i].resized = &imgs_resized[i];
                 imageData[i].ctx = ctx;
             }
 
