@@ -5,6 +5,8 @@
 #include <iostream>
 #include <regex>
 #include <fstream>
+#include <pthread.h>
+
 #include "ggml/ggml.h"
 #include "clip.h"
 
@@ -23,7 +25,7 @@ size_t get_mem_req_by_size(const size_t n_tensors, const int n_image_positions)
     case 397:                        // base
         if (n_image_positions == 50) // patch size = 32
         {
-            return 32 * mb;
+            return 8 * mb;
         }
         else // patch size = 16
         {
@@ -54,7 +56,7 @@ size_t get_scr_buf_req_by_size(const size_t n_tensors, const int n_positions)
     case 397:
         if (n_positions <= 50)
         {
-            return 512 * mb;
+            return 16 * mb;
         }
         else
         {
@@ -251,6 +253,77 @@ bool clip_image_preprocess(const clip_ctx *ctx, const clip_image_u8 *img, clip_i
     }
 
     return true;
+}
+// Structure to hold the image data as an input to function to be executed for thread
+typedef struct
+{
+    clip_image_u8 *input;
+    clip_image_f32 *resized;
+    const clip_ctx *ctx;
+} ImageData;
+
+// Function to preprocess a single image in a thread
+void *preprocess_image(void *arg)
+{
+    ImageData *imageData = static_cast<ImageData *>(arg);
+    clip_image_u8 *input = imageData->input;
+    clip_image_f32 *resized = imageData->resized;
+    const clip_ctx *ctx = imageData->ctx;
+
+    // Call the original preprocess function on the image
+    clip_image_preprocess(ctx, input, resized);
+
+    pthread_exit(NULL);
+}
+
+// Function to batch-preprocess multiple images i
+void clip_image_batch_preprocess(const clip_ctx *ctx, const std::vector<clip_image_u8 *> &img_inputs, std::vector<clip_image_f32> &img_resized, const int n_threads)
+{
+    GGML_ASSERT(img_inputs.size() == img_resized.size());
+    int num_threads = std::min(n_threads, static_cast<int>(img_inputs.size()));
+    int i, t;
+
+    // Divide the images among the threads
+    int images_per_thread = img_inputs.size() / num_threads;
+
+    if (num_threads == 1)
+    {
+        // Single-threaded case
+        for (i = 0; i < img_inputs.size(); i++)
+        {
+            clip_image_preprocess(ctx, img_inputs[i], &img_resized[i]);
+        }
+    }
+    else
+    {
+        // Multi-threaded case
+
+        std::vector<pthread_t> threads(num_threads);
+        std::vector<ImageData> imageData(img_inputs.size());
+
+        for (t = 0; t < num_threads; t++)
+        {
+            int start_index = t * images_per_thread;
+            int end_index = (t == num_threads - 1) ? img_inputs.size() : start_index + images_per_thread;
+
+            // Create ImageData for each thread
+            for (i = start_index; i < end_index; i++)
+            {
+                imageData[i].input = img_inputs[i];
+                imageData[i].resized = &img_resized[i];
+                imageData[i].ctx = ctx;
+            }
+
+            // Create a thread for each batch of images
+            pthread_create(&threads[t], NULL, preprocess_image, static_cast<void *>(&imageData[start_index]));
+        }
+
+        // Wait for all threads to finish
+        for (t = 0; t < num_threads; t++)
+        {
+            pthread_join(threads[t], NULL);
+        }
+    }
 }
 
 struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
