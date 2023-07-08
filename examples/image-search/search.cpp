@@ -131,7 +131,7 @@ int main(int argc, char** argv) {
     auto results = embd_index.search({txt_vec.data(), txt_vec.size()}, params.n_results);
 
     printf("search results:\n");
-    printf("similarity path\n");
+    printf("distance path\n");
     for (std::size_t i = 0; i != results.size(); ++i) {
         printf("  %f %s\n", results[i].distance, image_file_index.at(results[i].element.label).c_str());
     }
