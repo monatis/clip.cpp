@@ -1,10 +1,10 @@
 # Image search
 
-This example implements basic semantic image search using [usearch](https://github.com/unum-cloud/usearch) as a similartiy accelerated database.
+This example implements basic semantic image search using [usearch](https://github.com/unum-cloud/usearch) as a vector database for accelerated similarity search.
 
 Use `image-search-build` to build the database of images and their embeddings beforehand. Currently it does not support updating.
 
-Use `image-search` to seach for indexed images by semantic similarity.
+Use `image-search` to search for indexed images by semantic similarity.
 
 ### examples
 
@@ -47,10 +47,10 @@ clip_model_load: loading model from 'models/openai_clip-vit-base-patch32.ggmlv0.
 clip_model_load: model loaded
 
 search results:
-similarity path
+distance path
   0.674587 /home/xxxx/tests/red_apple.jpg
   0.785591 /home/xxxx/tests/white.jpg
 ```
 
-note: lower score for search results is better.
+note: lower score for search results is better as it indicates the distance, not the similarity.
 
