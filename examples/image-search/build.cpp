@@ -100,6 +100,8 @@ int main(int argc, char** argv) {
 
     size_t label = 0;
 
+    std::vector<float> vec(vec_dim);
+
     // search for images in path and write embedding to database
     for (const auto& base_dir : params.image_directories) {
         fprintf(stdout, "%s: starting base dir scan of '%s'\n", __func__, base_dir.c_str());
@@ -132,7 +134,6 @@ int main(int argc, char** argv) {
             clip_image_f32 img_res;
             clip_image_preprocess(clip_ctx, &img0, &img_res);
 
-            std::vector<float> vec(vec_dim);
             if (!clip_image_encode(clip_ctx, params.n_threads, img_res, vec.data())) {
                 fprintf(stderr, "%s: failed to encode image from '%s'\n", __func__, img_path.c_str());
                 continue;
