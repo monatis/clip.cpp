@@ -269,10 +269,10 @@ endif()
 
 add_subdirectory(models)
 
-if (NOT CLIP_NO_EXAMPLES)
+if (CLIP_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
-if (NOT CLIP_NO_TESTS)
+if (CLIP_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
