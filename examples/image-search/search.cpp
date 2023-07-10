@@ -1,4 +1,5 @@
 #include "clip.h"
+#include "common-clip.h"
 #include "usearch/index.hpp"
 
 #include <fstream>
@@ -10,15 +11,15 @@ struct my_app_params
     int32_t verbose{1};
     // TODO: index dir
 
-    // TODO: search by image
     std::string search_text;
+    std::string img_path;
 
     int32_t n_results{5};
 };
 
 void my_print_help(int argc, char **argv, my_app_params &params)
 {
-    printf("Usage: %s [options] <search string>\n", argv[0]);
+    printf("Usage: %s [options] <search string or /path/to/query/image>\n", argv[0]);
     printf("\nOptions:");
     printf("  -h, --help: Show this message and exit\n");
     printf("  -m <path>, --model <path>: overwrite path to model. Read from images.paths by default.\n");
@@ -88,16 +89,23 @@ bool my_app_params_parse(int argc, char **argv, my_app_params &params)
         else
         {
             // assume search string from here on out
-            params.search_text = arg;
-            for (++i; i < argc; i++)
+            if (i == argc - 1 && is_image_file_extension(arg))
             {
-                params.search_text += " ";
-                params.search_text += argv[i];
+                params.img_path = arg;
+            }
+            else
+            {
+                params.search_text = arg;
+                for (++i; i < argc; i++)
+                {
+                    params.search_text += " ";
+                    params.search_text += argv[i];
+                }
             }
         }
     }
 
-    return !(invalid_param || params.search_text.empty());
+    return !(invalid_param || (params.search_text.empty() && params.img_path.empty()));
 }
 
 int main(int argc, char **argv)
@@ -153,14 +161,37 @@ int main(int argc, char **argv)
     }
 
     const size_t vec_dim = clip_ctx->vision_model.hparams.projection_dim;
+    std::vector<float> vec(vec_dim);
 
-    auto tokens = clip_tokenize(clip_ctx, params.search_text);
+    if (!params.img_path.empty())
+    {
+        clip_image_u8 img0;
+        if (!clip_image_load_from_file(params.img_path, img0))
+        {
+            fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, params.img_path.c_str());
+            clip_free(clip_ctx);
+            return 1;
+        }
 
-    std::vector<float> txt_vec(vec_dim);
+        clip_image_f32 img_res;
+        clip_image_preprocess(clip_ctx, &img0, &img_res);
 
-    clip_text_encode(clip_ctx, params.n_threads, tokens, txt_vec.data());
+        if (!clip_image_encode(clip_ctx, params.n_threads, img_res, vec.data()))
+        {
+            fprintf(stderr, "%s: failed to encode image from '%s'\n", __func__, params.img_path.c_str());
+            clip_free(clip_ctx);
+            return 1;
+        }
+    }
+    else
+    {
 
-    auto results = embd_index.search({txt_vec.data(), txt_vec.size()}, params.n_results);
+        auto tokens = clip_tokenize(clip_ctx, params.search_text);
+
+        clip_text_encode(clip_ctx, params.n_threads, tokens, vec.data());
+    }
+
+    auto results = embd_index.search({vec.data(), vec.size()}, params.n_results);
 
     printf("search results:\n");
     printf("distance path\n");

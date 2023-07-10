@@ -1,8 +1,8 @@
 #include "clip.h"
+#include "common-clip.h"
 #include "usearch/index.hpp"
 
 #include <fstream>
-#include <filesystem>
 
 struct my_app_params
 {
@@ -81,33 +81,6 @@ bool my_app_params_parse(int argc, char **argv, my_app_params &params)
     return !(invalid_param || params.image_directories.empty());
 }
 
-bool is_image_file_extension(std::string_view ext)
-{
-    if (ext == ".jpg")
-        return true;
-    if (ext == ".JPG")
-        return true;
-
-    if (ext == ".jpeg")
-        return true;
-    if (ext == ".JPEG")
-        return true;
-
-    if (ext == ".gif")
-        return true;
-    if (ext == ".GIF")
-        return true;
-
-    if (ext == ".png")
-        return true;
-    if (ext == ".PNG")
-        return true;
-
-    // TODO(green-sky): determine if we should add more formats from stbi. tga/hdr/pnm seem kinda niche.
-
-    return false;
-}
-
 int main(int argc, char **argv)
 {
     my_app_params params;
@@ -137,55 +110,49 @@ int main(int argc, char **argv)
     for (const auto &base_dir : params.image_directories)
     {
         fprintf(stdout, "%s: starting base dir scan of '%s'\n", __func__, base_dir.c_str());
+        auto results = get_dir_keyed_files(base_dir, 0);
 
-        for (auto const &dir_entry : std::filesystem::recursive_directory_iterator(base_dir))
+        for (auto &entry : results)
         {
-            if (!dir_entry.is_regular_file())
-            {
-                continue;
-            }
+            printf("%s: processing %d files in %s\n", __func__, entry.second.size(), entry.first.c_str());
 
-            // check for image file
-            const auto &ext = dir_entry.path().extension();
-            if (ext.empty())
+            for (auto &img_path : entry.second)
             {
-                continue;
-            }
-            if (!is_image_file_extension(ext.c_str()))
-            {
-                continue;
-            }
+                if (params.verbose >= 2)
+                {
+                    printf("%s: found image file '%s'\n", __func__, img_path.c_str());
+                }
+                else if (params.verbose == 1)
+                {
+                    printf(".");
+                    fflush(stdout);
+                }
 
-            std::string img_path{dir_entry.path()};
-            if (params.verbose >= 1)
-            {
-                fprintf(stdout, "%s: found image file '%s'\n", __func__, img_path.c_str());
+                clip_image_u8 img0;
+                if (!clip_image_load_from_file(img_path, img0))
+                {
+                    fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, img_path.c_str());
+                    continue;
+                }
+
+                clip_image_f32 img_res;
+                clip_image_preprocess(clip_ctx, &img0, &img_res);
+
+                if (!clip_image_encode(clip_ctx, params.n_threads, img_res, vec.data()))
+                {
+                    fprintf(stderr, "%s: failed to encode image from '%s'\n", __func__, img_path.c_str());
+                    continue;
+                }
+
+                if (embd_index.capacity() == embd_index.size())
+                {
+                    embd_index.reserve(embd_index.size() + 32);
+                }
+
+                // add the image to the database
+                embd_index.add(label++, {vec.data(), vec.size()});
+                image_file_index.push_back(img_path);
             }
-
-            clip_image_u8 img0;
-            if (!clip_image_load_from_file(img_path, img0))
-            {
-                fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, img_path.c_str());
-                continue;
-            }
-
-            clip_image_f32 img_res;
-            clip_image_preprocess(clip_ctx, &img0, &img_res);
-
-            if (!clip_image_encode(clip_ctx, params.n_threads, img_res, vec.data()))
-            {
-                fprintf(stderr, "%s: failed to encode image from '%s'\n", __func__, img_path.c_str());
-                continue;
-            }
-
-            if (embd_index.capacity() == embd_index.size())
-            {
-                embd_index.reserve(embd_index.size() + 32);
-            }
-
-            // add the image to the database
-            embd_index.add(label++, {vec.data(), vec.size()});
-            image_file_index.push_back(std::filesystem::canonical(dir_entry.path()));
         }
     }
 

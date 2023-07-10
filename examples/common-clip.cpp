@@ -98,6 +98,10 @@ std::map<std::string, std::vector<std::string>> get_dir_keyed_files(const std::s
         }
         else
         {
+            if (!is_image_file_extension(fullPath))
+            {
+                continue;
+            }
             size_t pos = path.find_last_of("/");
             std::string parentDir = (pos != std::string::npos) ? path.substr(pos + 1) : path;
             result[parentDir].push_back(fullPath);
@@ -112,6 +116,41 @@ std::map<std::string, std::vector<std::string>> get_dir_keyed_files(const std::s
 #endif
 
     return result;
+}
+
+bool is_image_file_extension(std::string &path)
+{
+    size_t pos = path.find_last_of(".");
+    if (pos == std::string::npos)
+    {
+        return false;
+    }
+
+    std::string ext = path.substr(pos);
+
+    if (ext == ".jpg")
+        return true;
+    if (ext == ".JPG")
+        return true;
+
+    if (ext == ".jpeg")
+        return true;
+    if (ext == ".JPEG")
+        return true;
+
+    if (ext == ".gif")
+        return true;
+    if (ext == ".GIF")
+        return true;
+
+    if (ext == ".png")
+        return true;
+    if (ext == ".PNG")
+        return true;
+
+    // TODO(green-sky): determine if we should add more formats from stbi. tga/hdr/pnm seem kinda niche.
+
+    return false;
 }
 
 bool app_params_parse(int argc, char **argv, app_params &params)
