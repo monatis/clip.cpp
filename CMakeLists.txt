@@ -116,6 +116,7 @@ if (CLIP_ALL_WARNINGS)
             -Wall
             -Wextra
             -Wpedantic
+            -Wno-format
             -Wcast-qual
             -Wdouble-promotion
             -Wshadow
@@ -127,6 +128,7 @@ if (CLIP_ALL_WARNINGS)
             -Wall
             -Wextra
             -Wpedantic
+            -Wno-format
             -Wcast-qual
             -Wno-unused-function
         )
@@ -140,8 +142,6 @@ if (CLIP_ALL_WARNINGS)
     )
 
 endif()
-
-add_compile_options(-Wno-format)
 
 if (CLIP_LTO)
     include(CheckIPOSupported)
