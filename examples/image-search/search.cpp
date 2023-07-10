@@ -3,19 +3,21 @@
 
 #include <fstream>
 
-struct my_app_params {
-    int32_t n_threads {4};
+struct my_app_params
+{
+    int32_t n_threads{4};
     std::string model;
-    int32_t verbose {1};
+    int32_t verbose{1};
     // TODO: index dir
 
     // TODO: search by image
     std::string search_text;
 
-    int32_t n_results {5};
+    int32_t n_results{5};
 };
 
-void my_print_help(int argc, char **argv, my_app_params &params) {
+void my_print_help(int argc, char **argv, my_app_params &params)
+{
     printf("Usage: %s [options] <search string>\n", argv[0]);
     printf("\nOptions:");
     printf("  -h, --help: Show this message and exit\n");
@@ -27,47 +29,68 @@ void my_print_help(int argc, char **argv, my_app_params &params) {
 }
 
 // returns success
-bool my_app_params_parse(int argc, char **argv, my_app_params &params) {
+bool my_app_params_parse(int argc, char **argv, my_app_params &params)
+{
     bool invalid_param = false;
-    for (int i = 1; i < argc; i++) {
+    for (int i = 1; i < argc; i++)
+    {
         std::string arg = argv[i];
 
-        if (arg == "-m" || arg == "--model") {
-            if (++i >= argc) {
+        if (arg == "-m" || arg == "--model")
+        {
+            if (++i >= argc)
+            {
                 invalid_param = true;
                 break;
             }
             params.model = argv[i];
-        } else if (arg == "-t" || arg == "--threads") {
-            if (++i >= argc) {
+        }
+        else if (arg == "-t" || arg == "--threads")
+        {
+            if (++i >= argc)
+            {
                 invalid_param = true;
                 break;
             }
             params.n_threads = std::stoi(argv[i]);
-        } else if (arg == "-n" || arg == "--results") {
-            if (++i >= argc) {
+        }
+        else if (arg == "-n" || arg == "--results")
+        {
+            if (++i >= argc)
+            {
                 invalid_param = true;
                 break;
             }
             params.n_results = std::stoi(argv[i]);
-        } else if (arg == "-v" || arg == "--verbose") {
-            if (++i >= argc) {
+        }
+        else if (arg == "-v" || arg == "--verbose")
+        {
+            if (++i >= argc)
+            {
                 invalid_param = true;
                 break;
             }
             params.verbose = std::stoi(argv[i]);
-        } else if (arg == "-h" || arg == "--help") {
+        }
+        else if (arg == "-h" || arg == "--help")
+        {
             my_print_help(argc, argv, params);
             exit(0);
-        } else if (arg.starts_with('-')) {
-            if (i != 0) {
+        }
+        else if (arg.find('-') == 0)
+        {
+            if (i != 0)
+            {
                 printf("%s: unrecognized argument: %s\n", __func__, arg.c_str());
                 return false;
             }
-        } else {
+        }
+        else
+        {
             // assume search string from here on out
             params.search_text = arg;
-            for (++i; i < argc; i++) {
+            for (++i; i < argc; i++)
+            {
                 params.search_text += " ";
                 params.search_text += argv[i];
             }
@@ -77,9 +100,11 @@ bool my_app_params_parse(int argc, char **argv, my_app_params &params) {
     return !(invalid_param || params.search_text.empty());
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv)
+{
     my_app_params params;
-    if (!my_app_params_parse(argc, argv, params)) {
+    if (!my_app_params_parse(argc, argv, params))
+    {
         my_print_help(argc, argv, params);
         return 1;
     }
@@ -88,15 +113,19 @@ int main(int argc, char** argv) {
     std::ifstream image_file_index_file("images.paths", std::ios::binary);
     std::string line;
     std::getline(image_file_index_file, line);
-    if (params.model.empty()) {
+    if (params.model.empty())
+    {
         params.model = line;
-    } else {
+    }
+    else
+    {
         printf("%s: using alternative model from %s. Make sure you use the same model you used for indexing, or the embeddings wont work.\n", __func__, params.model.c_str());
     }
 
     // load model
     auto clip_ctx = clip_model_load(params.model.c_str(), params.verbose);
-    if (!clip_ctx) {
+    if (!clip_ctx)
+    {
         printf("%s: Unable to load model from %s\n", __func__, params.model.c_str());
         return 1;
     }
@@ -108,15 +137,18 @@ int main(int argc, char** argv) {
     embd_index.view("images.usearch");
 
     // load image paths
-    do {
+    do
+    {
         std::getline(image_file_index_file, line);
-        if (line.empty()) {
+        if (line.empty())
+        {
             break;
         }
         image_file_index.push_back(line);
-    } while(image_file_index_file.good());
+    } while (image_file_index_file.good());
 
-    if (image_file_index.size() != embd_index.size()) {
+    if (image_file_index.size() != embd_index.size())
+    {
         printf("%s: index files size missmatch\n", __func__);
     }
 
@@ -132,7 +164,8 @@ int main(int argc, char** argv) {
 
     printf("search results:\n");
     printf("distance path\n");
-    for (std::size_t i = 0; i != results.size(); ++i) {
+    for (std::size_t i = 0; i != results.size(); ++i)
+    {
         printf("  %f %s\n", results[i].distance, image_file_index.at(results[i].member.label).c_str());
     }
 
@@ -140,4 +173,3 @@ int main(int argc, char** argv) {
 
     return 0;
 }
-

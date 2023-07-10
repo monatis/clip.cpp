@@ -141,7 +141,7 @@ if (CLIP_ALL_WARNINGS)
 
 endif()
 
-add_compile_options(-Wno-format -O3)
+add_compile_options(-Wno-format)
 
 if (CLIP_LTO)
     include(CheckIPOSupported)
@@ -259,7 +259,7 @@ add_library(clip
             clip.h)
 
 target_include_directories(clip PUBLIC .)
-target_compile_features(clip PUBLIC cxx_std_20) # don't bump
+target_compile_features(clip PUBLIC cxx_std_11)
 target_link_libraries(clip PRIVATE ggml ${CLIP_EXTRA_LIBS})
 
 if (BUILD_SHARED_LIBS)

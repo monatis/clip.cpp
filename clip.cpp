@@ -123,7 +123,7 @@ std::vector<clip_vocab::id> clip_tokenize(const clip_ctx *ctx, const std::string
     {
         // feel lucky? let's try if it's a full word
         std::string full_word = "";
-        if (word.starts_with(" "))
+        if (word.find(" ") == 0) // starts_with for C++11
         {
             full_word += word.substr(1);
         }
