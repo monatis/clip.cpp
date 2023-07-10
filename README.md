@@ -116,7 +116,7 @@ The CLI args are the same as in `main`,
 but you must specify multiple `--text` arguments to specify the labels.
 
 3. `image-search` is an example for semantic image search with [USearch](https://github.com/unum-cloud/usearch/).
-You must enable `CLIP_BUILD_IMAGE_SEARCH` option to compile it, and the dependency will beautomatically fetched by cmake:
+You must enable `CLIP_BUILD_IMAGE_SEARCH` option to compile it, and the dependency will be automatically fetched by cmake:
 
 ```sh
 mkdir build
@@ -128,7 +128,7 @@ cmake -DCLIP_BUILD_IMAGE_SEARCH=ON ..
 make
 ```
 
-See [examples/image-search/README.md](examples/image-search/README.md) for more info.
+See [examples/image-search/README.md](examples/image-search/README.md) for more info and usage.
 
 ## Benchmarking
 You can use the benchmarking utility to compare the performances of different checkpoints and quantization types.
