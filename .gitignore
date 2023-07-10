@@ -1,2 +1,5 @@
 build/
 .vscode
+.cache/
+*.swp
+models/*.bin
