@@ -133,7 +133,7 @@ int main(int argc, char** argv) {
     printf("search results:\n");
     printf("distance path\n");
     for (std::size_t i = 0; i != results.size(); ++i) {
-        printf("  %f %s\n", results[i].distance, image_file_index.at(results[i].element.label).c_str());
+        printf("  %f %s\n", results[i].distance, image_file_index.at(results[i].member.label).c_str());
     }
 
     clip_free(clip_ctx);
