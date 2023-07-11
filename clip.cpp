@@ -1456,7 +1456,7 @@ bool image_normalize(clip_image_u8 *img, clip_image_f32 *res)
 {
     if (img->nx != 224 || img->ny != 224)
     {
-        printf("%s: long input shape: %d x %s\n", __func__, img->nx, img->ny);
+        printf("%s: long input shape: %d x %d\n", __func__, img->nx, img->ny);
         return false;
     }
 
