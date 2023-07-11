@@ -12,6 +12,8 @@
 
 std::map<std::string, std::vector<std::string>> get_dir_keyed_files(const std::string &path, uint32_t max_files_per_dir);
 
+bool is_image_file_extension(const std::string &path);
+
 struct app_params
 {
     int32_t n_threads = std::min(4, (int32_t)std::thread::hardware_concurrency());

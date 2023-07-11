@@ -43,7 +43,7 @@ size_t get_mem_req_by_size(const size_t n_tensors, const int n_image_positions)
     case 909: // huge
         return 24 * mb;
     default:
-        fprintf(stderr, "%s: Unrecognized number of tensors: %d. Check if you pass the correct model file\n", __func__, n_tensors);
+        fprintf(stderr, "%s: Unrecognized number of tensors: %zu. Check if you pass the correct model file\n", __func__, n_tensors);
         exit(1);
     }
 }
@@ -74,7 +74,7 @@ size_t get_scr_buf_req_by_size(const size_t n_tensors, const int n_positions)
     case 909:
         return 96 * mb;
     default:
-        fprintf(stderr, "%s: Unrecognized number of tensors: %d. Check if you pass the correct model file\n", __func__, n_tensors);
+        fprintf(stderr, "%s: Unrecognized number of tensors: %zu. Check if you pass the correct model file\n", __func__, n_tensors);
         exit(1);
     }
 }
@@ -125,7 +125,7 @@ std::vector<clip_vocab::id> clip_tokenize(const clip_ctx *ctx, const std::string
     {
         // feel lucky? let's try if it's a full word
         std::string full_word = "";
-        if (word.starts_with(" "))
+        if (word.find(" ") == 0) // starts_with for C++11
         {
             full_word += word.substr(1);
         }
@@ -823,7 +823,7 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
 
             if ((nelements * bpe) / ggml_blck_size(tensor->type) != ggml_nbytes(tensor))
             {
-                fprintf(stderr, "%s: tensor '%s' has wrong size in model file: got %zu, expected %llu\n",
+                fprintf(stderr, "%s: tensor '%s' has wrong size in model file: got %zu, expected %zu\n",
                         __func__, name.data(), ggml_nbytes(tensor), nelements * bpe);
                 clip_free(new_clip);
                 return nullptr;
@@ -866,7 +866,7 @@ struct clip_ctx *clip_model_load(const char *fname, const int verbosity = 1)
 
         if (verbosity >= 2)
         {
-            printf("%s: %d MB of compute buffer allocated\n", __func__, mem_req / 1024 / 1024);
+            printf("%s: %zu MB of compute buffer allocated\n", __func__, mem_req / 1024 / 1024);
         }
     }
 
@@ -1567,7 +1567,7 @@ bool image_normalize(clip_image_u8 *img, clip_image_f32 *res)
 {
     if (img->nx != 224 || img->ny != 224)
     {
-        printf("%s: long input shape: %d x %s\n", __func__, img->nx, img->ny);
+        printf("%s: long input shape: %d x %d\n", __func__, img->nx, img->ny);
         return false;
     }
 

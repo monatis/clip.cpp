@@ -99,7 +99,7 @@ For example, you can run the following to convert the model to q4_0:
 Now you can use `ggml-model-q4_0.bin` just like the model in F16.
 
 ## Usage
-Currently we have two examples: `main` and `zsl`.
+Currently we have three examples: `main`, `zsl` and `image-search`.
 
 1. `main` is just for demonstrating the usage of API and optionally print out some verbose timings. It simply calculates the similarity between one image and one text passed as CLI args.
 
@@ -117,6 +117,21 @@ Options:  -h, --help: Show this message and exit
 2. `zsl` is a zero-shot image labeling example. It labels an image with one of the labels.
 The CLI args are the same as in `main`,
 but you must specify multiple `--text` arguments to specify the labels.
+
+3. `image-search` is an example for semantic image search with [USearch](https://github.com/unum-cloud/usearch/).
+You must enable `CLIP_BUILD_IMAGE_SEARCH` option to compile it, and the dependency will be automatically fetched by cmake:
+
+```sh
+mkdir build
+
+cd build
+
+cmake -DCLIP_BUILD_IMAGE_SEARCH=ON ..
+
+make
+```
+
+See [examples/image-search/README.md](examples/image-search/README.md) for more info and usage.
 
 ## Benchmarking
 You can use the benchmarking utility to compare the performances of different checkpoints and quantization types.
