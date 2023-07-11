@@ -118,7 +118,7 @@ std::map<std::string, std::vector<std::string>> get_dir_keyed_files(const std::s
     return result;
 }
 
-bool is_image_file_extension(std::string &path)
+bool is_image_file_extension(const std::string &path)
 {
     size_t pos = path.find_last_of(".");
     if (pos == std::string::npos)
