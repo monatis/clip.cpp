@@ -114,7 +114,7 @@ int main(int argc, char **argv)
 
         for (auto &entry : results)
         {
-            printf("%s: processing %d files in %s\n", __func__, entry.second.size(), entry.first.c_str());
+            printf("\n%s: processing %d files in '%s'\n", __func__, entry.second.size(), entry.first.c_str());
 
             for (auto &img_path : entry.second)
             {
