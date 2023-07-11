@@ -31,7 +31,7 @@ creating db for `tests/`:
 help:
 ```sh
 ./image-search -h
-Usage: ./image-search [options] <search string>
+Usage: ./image-search [options] <search string or /path/to/query/image>
 
 Options:  -h, --help: Show this message and exit
   -m <path>, --model <path>: overwrite path to model. Read from images.paths by default.
