@@ -54,6 +54,7 @@ int main(int argc, char **argv)
     }
 
     const size_t batch_size = 4;
+    const size_t n_threads = 4;
 
     const int vec_dim = ctx->text_model.hparams.projection_dim;
 
@@ -70,7 +71,7 @@ int main(int argc, char **argv)
     for (const auto &entry : result)
     {
         auto tokens = clip_tokenize(ctx, entry.first);
-        if (!clip_text_encode(ctx, 4, tokens, txt_vecs + label_idx * vec_dim))
+        if (!clip_text_encode(ctx, n_threads, tokens, txt_vecs + label_idx * vec_dim))
         {
             printf("%s: Could not encode the label at index %d: %s\n", __func__, label_idx, entry.first.c_str());
             return 1;
@@ -120,9 +121,9 @@ int main(int argc, char **argv)
                 }
             }
 
-            clip_image_batch_preprocess(ctx, 4, img_inputs, imgs_resized);
+            clip_image_batch_preprocess(ctx, n_threads, img_inputs, imgs_resized);
 
-            clip_image_batch_encode(ctx, 4, imgs_resized, img_vecs);
+            clip_image_batch_encode(ctx, n_threads, imgs_resized, img_vecs);
 
             for (size_t b = 0; b < batch_size; b++)
             {
