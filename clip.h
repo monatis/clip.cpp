@@ -200,6 +200,7 @@ std::vector<clip_vocab::id> clip_tokenize(const clip_ctx *ctx, const std::string
 
 bool clip_image_load_from_file(const std::string &fname, clip_image_u8 &img);
 bool clip_image_preprocess(const clip_ctx *ctx, const clip_image_u8 *img, clip_image_f32 *res);
+void clip_image_batch_preprocess(const clip_ctx *ctx, const int n_threads, const std::vector<clip_image_u8> &img_inputs, std::vector<clip_image_f32> &img_resized);
 
 bool clip_text_encode(
     const clip_ctx *ctx,
@@ -219,8 +220,11 @@ bool clip_compare_text_and_image(clip_ctx *ctx, int n_threads, std::string &text
 float clip_similarity_score(float *vec1, float *vec2, int vec_dim);
 bool softmax_with_sorting(float *arr, int length, float *sorted_scores, int *indices);
 
-// utils for debugging
-void write_floats_to_file(float *array, int size, char *filename);
+bool clip_image_batch_encode(
+    const clip_ctx *ctx,
+    int n_threads,
+    const std::vector<clip_image_f32> &imgs,
+    float *vec);
 
 // #ifdef __cplusplus
 // }

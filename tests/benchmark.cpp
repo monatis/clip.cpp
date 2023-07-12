@@ -44,7 +44,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    fprintf(fout, "%s: %d directories found in %s\n\n", __func__, n_labels, dir_path.c_str());
+    fprintf(fout, "%s: %zu directories found in %s\n\n", __func__, n_labels, dir_path.c_str());
 
     auto ctx = clip_model_load(model_path.c_str(), 2);
     if (!ctx)
@@ -53,14 +53,12 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    const size_t batch_size = 4;
+    const size_t n_threads = 4;
+
     const int vec_dim = ctx->text_model.hparams.projection_dim;
 
-    // allocate memory for text vectors
-    float *txt_vecs = (float *)malloc(n_labels * vec_dim * sizeof(float));
-    if (!txt_vecs)
-    {
-        printf("%s: Could not allocate memory for %d vectors of %d dimensions\n", __func__, n_labels, vec_dim);
-    }
+    float txt_vecs[n_labels * vec_dim];
 
     ggml_time_init();
 
@@ -73,7 +71,7 @@ int main(int argc, char **argv)
     for (const auto &entry : result)
     {
         auto tokens = clip_tokenize(ctx, entry.first);
-        if (!clip_text_encode(ctx, 4, tokens, txt_vecs + label_idx * vec_dim))
+        if (!clip_text_encode(ctx, n_threads, tokens, txt_vecs + label_idx * vec_dim))
         {
             printf("%s: Could not encode the label at index %d: %s\n", __func__, label_idx, entry.first.c_str());
             return 1;
@@ -88,12 +86,13 @@ int main(int argc, char **argv)
     int n_total_items = 0;         // total number of images processed
     float total_acc1_score = 0.0f; // total accuracy at 1 for the intire dataset
     float total_acc5_score = 0.0f; // total accuracy at 5 in intitre dataset
-    float img_vec[vec_dim];
+    float img_vecs[vec_dim * batch_size];
+
     float similarities[n_labels];
     float sorted_scores[n_labels];
     int indices[n_labels];
-    clip_image_u8 img;
-    clip_image_f32 img_res;
+    std::vector<clip_image_u8> img_inputs(batch_size);
+    std::vector<clip_image_f32> imgs_resized(batch_size);
 
     // print table headers
     fprintf(fout, "| class name           | acc@1  | acc@5  |\n");
@@ -107,56 +106,59 @@ int main(int argc, char **argv)
         int n_acc1 = 0;
         int n_acc5 = 0;
 
-        int64_t t_start_encode_images = ggml_time_us();
+        size_t n_batched = (entry.second.size() / batch_size) * batch_size;
 
-        for (auto &file_path : entry.second)
+        for (size_t i = 0; i < n_batched; i += batch_size)
         {
-            if (!clip_image_load_from_file(file_path, img))
+            for (size_t ib = i; ib < i + batch_size; ib++)
             {
-                printf("%s: cannot load file from %s\n", __func__, file_path.c_str());
-                return 1;
-            }
+                std::string file_path = entry.second[ib];
 
-            if (!clip_image_preprocess(ctx, &img, &img_res))
-            {
-                printf("%s: cannot preprocess image loaded from %s\n", __func__, file_path.c_str());
-                return 1;
-            }
-
-            clip_image_encode(ctx, 4, img_res, img_vec);
-            for (size_t i = 0; i < n_labels; i++)
-            {
-                similarities[i] = clip_similarity_score(img_vec, txt_vecs + i * vec_dim, vec_dim);
-            }
-
-            softmax_with_sorting(similarities, n_labels, sorted_scores, indices);
-            for (int j = 0; j < 5; j++)
-            {
-                if (j == 0 && indices[j] == label_idx)
+                if (!clip_image_load_from_file(file_path, img_inputs[ib % batch_size]))
                 {
-                    n_acc1 += 1;
-                    n_acc5 += 1;
-                    break;
-                }
-                else if (indices[j] == label_idx)
-                {
-                    n_acc5 += 1;
-                    break;
+                    printf("%s: cannot load file from %s\n", __func__, file_path.c_str());
+                    return 1;
                 }
             }
 
-            n_items += 1;
-            n_total_items += 1;
+            clip_image_batch_preprocess(ctx, n_threads, img_inputs, imgs_resized);
+
+            clip_image_batch_encode(ctx, n_threads, imgs_resized, img_vecs);
+
+            for (size_t b = 0; b < batch_size; b++)
+            {
+                for (size_t j = 0; j < n_labels; j++)
+                {
+                    similarities[j] = clip_similarity_score(img_vecs + b * vec_dim, txt_vecs + j * vec_dim, vec_dim);
+                }
+                softmax_with_sorting(similarities, n_labels, sorted_scores, indices);
+
+                for (int k = 0; k < 5; k++)
+                {
+                    if (k == 0 && indices[k] == label_idx)
+                    {
+                        n_acc1 += 1;
+                        n_acc5 += 1;
+                        break;
+                    }
+                    else if (indices[k] == label_idx)
+                    {
+                        n_acc5 += 1;
+                        break;
+                    }
+                }
+
+                n_items += 1;
+                n_total_items += 1;
+            }
         }
 
         float acc1_score = (float)n_acc1 / n_items;
         float acc5_score = (float)n_acc5 / n_items;
         total_acc1_score += acc1_score;
         total_acc5_score += acc5_score;
-        // printf("%s: acc@1 = %2.4f - acc@5 = %2.4f\n", entry.first.c_str(), acc1_score, acc5_score);
         fprintf(fout, "| %-*s ", 20, entry.first.c_str());
         fprintf(fout, "| %2.4f | %2.4f |\n", acc1_score, acc5_score);
-
         label_idx += 1;
     }
 
