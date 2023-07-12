@@ -913,7 +913,6 @@ bool clip_text_encode(
 
     struct ggml_context *ctx0 = ggml_init(params);
     struct ggml_cgraph gf = {};
-    gf.n_threads = n_threads;
 
     static size_t scr0_size = get_scr_buf_req_by_size(ctx->text_model.tensors.size() + ctx->vision_model.tensors.size(), N);
     static void *scr0 = malloc(scr0_size);
@@ -1064,7 +1063,7 @@ bool clip_text_encode(
 
     // run the computation
     ggml_build_forward_expand(&gf, embeddings);
-    ggml_graph_compute(ctx0, &gf);
+    ggml_graph_compute_with_ctx(ctx0, &gf, n_threads);
 
 // print
 #ifdef CLIP_DEBUG
@@ -1168,7 +1167,6 @@ bool clip_image_batch_encode(
 
     struct ggml_context *ctx0 = ggml_init(params);
     struct ggml_cgraph gf = {};
-    gf.n_threads = n_threads;
 
     static size_t scr0_size = get_scr_buf_req_by_size(ctx->text_model.tensors.size() + ctx->vision_model.tensors.size(), num_positions);
     static void *scr0 = malloc(scr0_size);
@@ -1380,7 +1378,7 @@ bool clip_image_batch_encode(
 
     // run the computation
     ggml_build_forward_expand(&gf, output);
-    ggml_graph_compute(ctx0, &gf);
+    ggml_graph_compute_with_ctx(ctx0, &gf, n_threads);
 
 // print
 #ifdef CLIP_DEBUG
