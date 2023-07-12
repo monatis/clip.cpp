@@ -200,7 +200,7 @@ std::vector<clip_vocab::id> clip_tokenize(const clip_ctx *ctx, const std::string
 
 bool clip_image_load_from_file(const std::string &fname, clip_image_u8 &img);
 bool clip_image_preprocess(const clip_ctx *ctx, const clip_image_u8 *img, clip_image_f32 *res);
-void clip_image_batch_preprocess(const clip_ctx *ctx, const std::vector<clip_image_u8 *> &img_inputs, std::vector<clip_image_f32> &img_resized, const int n_threads);
+void clip_image_batch_preprocess(const clip_ctx *ctx, const int n_threads, const std::vector<clip_image_u8> &img_inputs, std::vector<clip_image_f32> &img_resized);
 
 bool clip_text_encode(
     const clip_ctx *ctx,
