@@ -29,19 +29,19 @@ size_t get_mem_req_by_size(const size_t n_tensors, const int n_image_positions)
         }
         else // patch size = 16
         {
-            return 16 * mb;
+            return 24 * mb;
         }
     case 589:                         // large
         if (n_image_positions == 257) // input image size = 224
         {
-            return 16 * mb;
+            return 24 * mb;
         }
         else // input image size = 336
         {
-            return 40 * mb;
+            return 60 * mb;
         }
     case 909: // huge
-        return 24 * mb;
+        return 32 * mb;
     default:
         fprintf(stderr, "%s: Unrecognized number of tensors: %zu. Check if you pass the correct model file\n", __func__, n_tensors);
         exit(1);
@@ -60,19 +60,19 @@ size_t get_scr_buf_req_by_size(const size_t n_tensors, const int n_positions)
         }
         else
         {
-            return 64 * mb;
+            return 96 * mb;
         }
     case 589:
         if (n_positions <= 257)
         {
-            return 64 * mb;
+            return 96 * mb;
         }
         else
         {
-            return 128 * mb;
+            return 192 * mb;
         }
     case 909:
-        return 96 * mb;
+        return 144 * mb;
     default:
         fprintf(stderr, "%s: Unrecognized number of tensors: %zu. Check if you pass the correct model file\n", __func__, n_tensors);
         exit(1);
