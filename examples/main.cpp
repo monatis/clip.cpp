@@ -3,8 +3,7 @@
 #include "clip.h"
 #include "common-clip.h"
 
-int main(int argc, char **argv)
-{
+int main(int argc, char ** argv) {
     // TODO: replace this example with only clip_compare_text_and_image
     // and demonstrate usage of individual functions in zero-shot labelling and image search examples.
 
@@ -12,8 +11,7 @@ int main(int argc, char **argv)
     const int64_t t_main_start_us = ggml_time_us();
 
     app_params params;
-    if (!app_params_parse(argc, argv, params))
-    {
+    if (!app_params_parse(argc, argv, params)) {
         print_help(argc, argv, params);
         return 1;
     }
@@ -21,8 +19,7 @@ int main(int argc, char **argv)
     const int64_t t_load_us = ggml_time_us();
 
     auto ctx = clip_model_load(params.model.c_str(), params.verbose);
-    if (!ctx)
-    {
+    if (!ctx) {
         printf("%s: Unable  to load model from %s", __func__, params.model.c_str());
         return 1;
     }
@@ -46,8 +43,7 @@ int main(int argc, char **argv)
     std::string img_path = params.image_paths[0];
     clip_image_u8 img0;
     clip_image_f32 img_res;
-    if (!clip_image_load_from_file(img_path, img0))
-    {
+    if (!clip_image_load_from_file(img_path, img0)) {
         fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, img_path.c_str());
         return 1;
     }
@@ -57,8 +53,7 @@ int main(int argc, char **argv)
     const int64_t t_image_encode_us = ggml_time_us();
 
     float img_vec[vec_dim];
-    if (!clip_image_encode(ctx, params.n_threads, img_res, img_vec))
-    {
+    if (!clip_image_encode(ctx, params.n_threads, img_res, img_vec)) {
         return 1;
     }
 
@@ -69,8 +64,7 @@ int main(int argc, char **argv)
 
     const int64_t t_main_end_us = ggml_time_us();
 
-    if (params.verbose >= 1)
-    {
+    if (params.verbose >= 1) {
         printf("\n\nTimings\n");
         printf("%s: Model loaded in %8.2f ms\n", __func__, (t_tokenize_us - t_load_us) / 1000.0);
         printf("%s: Text tokenized in %8.2f ms\n", __func__, (t_text_encode_us - t_tokenize_us) / 1000.0);

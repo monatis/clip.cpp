@@ -1,5 +1,5 @@
-#include "ggml/ggml.h"
 #include "clip.h"
+#include "ggml/ggml.h"
 
 #include <cassert>
 #include <cmath>
@@ -7,17 +7,15 @@
 #include <cstring>
 #include <fstream>
 #include <map>
+#include <regex>
 #include <string>
 #include <vector>
-#include <regex>
 
 // quantize a model
-bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_out, int itype)
-{
+bool clip_model_quantize(const std::string & fname_inp, const std::string & fname_out, int itype) {
     ggml_type type = GGML_TYPE_Q4_1;
 
-    switch (itype)
-    {
+    switch (itype) {
     case 2:
         type = GGML_TYPE_Q4_0;
         break;
@@ -29,8 +27,7 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
         return 1;
     };
 
-    if (type != GGML_TYPE_Q4_0 && type != GGML_TYPE_Q4_1)
-    {
+    if (type != GGML_TYPE_Q4_0 && type != GGML_TYPE_Q4_1) {
         fprintf(stderr, "%s: invalid quantization type %d\n", __func__, type);
         return false;
     }
@@ -38,15 +35,13 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
     printf("%s: loading model from '%s'\n", __func__, fname_inp.c_str());
 
     auto fin = std::ifstream(fname_inp, std::ios::binary);
-    if (!fin)
-    {
+    if (!fin) {
         fprintf(stderr, "%s: failed to open '%s' for reading\n", __func__, fname_inp.c_str());
         return false;
     }
 
     auto fout = std::ofstream(fname_out, std::ios::binary);
-    if (!fout)
-    {
+    if (!fout) {
         fprintf(stderr, "%s: failed to open '%s' for writing\n", __func__, fname_out.c_str());
         return false;
     }
@@ -55,8 +50,7 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
     {
         uint32_t magic;
         fin.read((char *)&magic, sizeof(magic));
-        if (magic != 0x67676d6c)
-        {
+        if (magic != 0x67676d6c) {
             fprintf(stderr, "%s: invalid model file '%s' (bad magic)\n", __func__, fname_inp.c_str());
             return false;
         }
@@ -133,8 +127,7 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
         fout.write((char *)&n_vocab, sizeof(n_vocab));
 
         std::string word;
-        for (int i = 0; i < n_vocab; i++)
-        {
+        for (int i = 0; i < n_vocab; i++) {
             uint32_t len;
             fin.read((char *)&len, sizeof(len));
             fout.write((char *)&len, sizeof(len));
@@ -158,8 +151,7 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
 
         std::vector<int64_t> hist_all(1 << 4, 0);
 
-        while (true)
-        {
+        while (true) {
             int32_t n_dims;
             int32_t length;
             int32_t ftype;
@@ -168,15 +160,13 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
             fin.read(reinterpret_cast<char *>(&length), sizeof(length));
             fin.read(reinterpret_cast<char *>(&ftype), sizeof(ftype));
 
-            if (fin.eof())
-            {
+            if (fin.eof()) {
                 break;
             }
 
             int32_t nelements = 1;
             int32_t ne[4] = {1, 1, 1, 1};
-            for (int i = 0; i < n_dims; ++i)
-            {
+            for (int i = 0; i < n_dims; ++i) {
                 fin.read(reinterpret_cast<char *>(&ne[i]), sizeof(ne[i]));
                 nelements *= ne[i];
             }
@@ -185,7 +175,7 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
             fin.read(&name[0], length);
 
             {
-                static const char *ftype_str[] = {
+                static const char * ftype_str[] = {
                     "f32",
                     "f16",
                     "q4_0",
@@ -200,10 +190,8 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
             };
 
             bool quantize = false;
-            for (const auto &s : k_names)
-            {
-                if (std::regex_match(name, std::regex(s)))
-                {
+            for (const auto & s : k_names) {
+                if (std::regex_match(name, std::regex(s))) {
                     quantize = true;
                     break;
                 }
@@ -212,34 +200,26 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
             // quantize only 2D tensors
             quantize &= (n_dims == 2);
 
-            if (quantize)
-            {
-                if (ftype != 0 && ftype != 1)
-                {
+            if (quantize) {
+                if (ftype != 0 && ftype != 1) {
                     fprintf(stderr, "%s: unsupported ftype %d for integer quantization\n", __func__, ftype);
                     return false;
                 }
 
-                if (ftype == 1)
-                {
+                if (ftype == 1) {
                     data_f16.resize(nelements);
                     fin.read(reinterpret_cast<char *>(data_f16.data()), nelements * sizeof(ggml_fp16_t));
                     data_f32.resize(nelements);
-                    for (int i = 0; i < nelements; ++i)
-                    {
+                    for (int i = 0; i < nelements; ++i) {
                         data_f32[i] = ggml_fp16_to_fp32(data_f16[i]);
                     }
-                }
-                else
-                {
+                } else {
                     data_f32.resize(nelements);
                     fin.read(reinterpret_cast<char *>(data_f32.data()), nelements * sizeof(float));
                 }
 
                 ftype = itype;
-            }
-            else
-            {
+            } else {
                 const int bpe = (ftype == 0) ? sizeof(float) : sizeof(uint16_t);
 
                 data_u8.resize(nelements * bpe);
@@ -249,34 +229,26 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
             fout.write(reinterpret_cast<char *>(&n_dims), sizeof(n_dims));
             fout.write(reinterpret_cast<char *>(&length), sizeof(length));
             fout.write(reinterpret_cast<char *>(&ftype), sizeof(ftype));
-            for (int i = 0; i < n_dims; ++i)
-            {
+            for (int i = 0; i < n_dims; ++i) {
                 fout.write(reinterpret_cast<char *>(&ne[i]), sizeof(ne[i]));
             }
             fout.write(&name[0], length);
 
-            if (quantize)
-            {
+            if (quantize) {
                 printf("quantizing .. ");
                 work.resize(nelements); // for quantization
 
                 size_t cur_size = 0;
                 std::vector<int64_t> hist_cur(1 << 4, 0);
 
-                switch (type)
-                {
-                case GGML_TYPE_Q4_0:
-                {
+                switch (type) {
+                case GGML_TYPE_Q4_0: {
                     cur_size = ggml_quantize_q4_0(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
-                }
-                break;
-                case GGML_TYPE_Q4_1:
-                {
+                } break;
+                case GGML_TYPE_Q4_1: {
                     cur_size = ggml_quantize_q4_1(data_f32.data(), work.data(), nelements, ne[0], hist_cur.data());
-                }
-                break;
-                default:
-                {
+                } break;
+                default: {
                     fprintf(stderr, "%s: unsupported quantization type %d\n", __func__, type);
                     return false;
                 }
@@ -285,20 +257,17 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
                 fout.write(reinterpret_cast<char *>(work.data()), cur_size);
                 total_size_new += cur_size;
 
-                printf("size = %8.2f MB -> %8.2f MB | hist: ", nelements * sizeof(float) / 1024.0 / 1024.0, cur_size / 1024.0 / 1024.0);
-                for (size_t i = 0; i < hist_cur.size(); ++i)
-                {
+                printf("size = %8.2f MB -> %8.2f MB | hist: ", nelements * sizeof(float) / 1024.0 / 1024.0,
+                       cur_size / 1024.0 / 1024.0);
+                for (size_t i = 0; i < hist_cur.size(); ++i) {
                     hist_all[i] += hist_cur[i];
                 }
 
-                for (size_t i = 0; i < hist_cur.size(); ++i)
-                {
+                for (size_t i = 0; i < hist_cur.size(); ++i) {
                     printf("%5.3f ", hist_cur[i] / (float)nelements);
                 }
                 printf("\n");
-            }
-            else
-            {
+            } else {
                 printf("size = %8.3f MB\n", data_u8.size() / 1024.0 / 1024.0);
                 fout.write(reinterpret_cast<char *>(data_u8.data()), data_u8.size());
                 total_size_new += data_u8.size();
@@ -312,14 +281,12 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
 
         {
             int64_t sum_all = 0;
-            for (size_t i = 0; i < hist_all.size(); ++i)
-            {
+            for (size_t i = 0; i < hist_all.size(); ++i) {
                 sum_all += hist_all[i];
             }
 
             printf("%s: hist: ", __func__);
-            for (size_t i = 0; i < hist_all.size(); ++i)
-            {
+            for (size_t i = 0; i < hist_all.size(); ++i) {
                 printf("%5.3f ", hist_all[i] / (float)sum_all);
             }
             printf("\n");
@@ -335,10 +302,8 @@ bool clip_model_quantize(const std::string &fname_inp, const std::string &fname_
 // usage:
 //  ./bin/quantize models/ggml-model-f16.bin models/ggml-model-q4_1.bin type
 //
-int main(int argc, char **argv)
-{
-    if (argc != 4)
-    {
+int main(int argc, char ** argv) {
+    if (argc != 4) {
         fprintf(stderr, "usage: %s /path/to/ggml-model-f16.bin /path/to/ggml-model-quantized.bin type\n", argv[0]);
         fprintf(stderr, "  type = 2 - q4_0\n");
         fprintf(stderr, "  type = 3 - q4_1\n");
@@ -348,7 +313,7 @@ int main(int argc, char **argv)
     // needed to initialize f16 tables
     {
         struct ggml_init_params params = {0, NULL, false};
-        struct ggml_context *ctx = ggml_init(params);
+        struct ggml_context * ctx = ggml_init(params);
         ggml_free(ctx);
     }
 
@@ -365,8 +330,7 @@ int main(int argc, char **argv)
     {
         const int64_t t_start_us = ggml_time_us();
 
-        if (!clip_model_quantize(fname_inp, fname_out, itype))
-        {
+        if (!clip_model_quantize(fname_inp, fname_out, itype)) {
             fprintf(stderr, "%s: failed to quantize model from '%s'\n", __func__, fname_inp.c_str());
             return 1;
         }
