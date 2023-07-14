@@ -1,21 +1,20 @@
 #ifndef COMMON_CLIP_H
 #define COMMON_CLIP_H
 
-#include <vector>
-#include <map>
 #include <cstring>
+#include <map>
 #include <thread>
+#include <vector>
 
 // #ifdef __cplusplus
 // extern "C" {
 // #endif
 
-std::map<std::string, std::vector<std::string>> get_dir_keyed_files(const std::string &path, uint32_t max_files_per_dir);
+std::map<std::string, std::vector<std::string>> get_dir_keyed_files(const std::string & path, uint32_t max_files_per_dir);
 
-bool is_image_file_extension(const std::string &path);
+bool is_image_file_extension(const std::string & path);
 
-struct app_params
-{
+struct app_params {
     int32_t n_threads = std::min(4, (int32_t)std::thread::hardware_concurrency());
 
     std::string model = "models/ggml-model-f16.bin";
@@ -24,11 +23,11 @@ struct app_params
     int verbose = 1;
 };
 
-bool app_params_parse(int argc, char **argv, app_params &params);
-void print_help(int argc, char **argv, app_params &params);
+bool app_params_parse(int argc, char ** argv, app_params & params);
+void print_help(int argc, char ** argv, app_params & params);
 
 // utils for debugging
-void write_floats_to_file(float *array, int size, char *filename);
+void write_floats_to_file(float * array, int size, char * filename);
 
 // #ifdef __cplusplus
 // }
