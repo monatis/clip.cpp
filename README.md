@@ -100,7 +100,7 @@ For example, you can run the following to convert the model to q4_0:
 Now you can use `ggml-model-q4_0.bin` just like the model in F16.
 
 ## Usage
-Currently we have three examples: `main`, `zsl` and `image-search`.
+Currently we have four examples: `main`, `zsl`, `image-search` and `embedding`.
 
 1. `main` is just for demonstrating the usage of API and optionally print out some verbose timings. It simply calculates the similarity between one image and one text passed as CLI args.
 
@@ -133,6 +133,20 @@ make
 ```
 
 See [examples/image-search/README.md](examples/image-search/README.md) for more info and usage.
+
+4. `embedding` is an example that returns the embeddings of either text or an image.
+
+```
+Usage: ./bin/embedding [options]                                                                                             
+                                                                                                                        
+Options:  -h, --help: Show this message and exit                                                                        
+  -h, --help: Show this message and exit
+  -m <path>, --model <path>: Path to model. Default: models/ggml-model-f16.bin
+  -t N, --threads N: Number of threads to use for inference. Default: 4
+  --text <text>: Text to encode. One text or one image should be specified
+  --image <path>: Path to an image file. One text or one image should be specified
+  -v <level>, --verbose <level>: Control the level of verbosity. 0 = minimum, 2 = maximum. Default: 1                   
+```
 
 ## Benchmarking
 You can use the benchmarking utility to compare the performances of different checkpoints and quantization types.
