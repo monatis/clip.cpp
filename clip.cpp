@@ -959,7 +959,6 @@ bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<cli
     ggml_build_forward_expand(&gf, embeddings);
     ggml_cplan cplan = ggml_graph_plan(&gf, n_threads);
     if (cplan.work_size != 0) {
-        // printf("mem req: %zu\n", cplan.work_size);
         cplan.work_data = (uint8_t *)malloc(cplan.work_size);
     }
     ggml_graph_compute(&gf, &cplan);
@@ -1232,7 +1231,6 @@ bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vec
     ggml_build_forward_expand(&gf, output);
     ggml_cplan cplan = ggml_graph_plan(&gf, n_threads);
     if (cplan.work_size != 0) {
-        // printf("mem req: %zu\n", cplan.work_size);
         cplan.work_data = (uint8_t *)malloc(cplan.work_size);
     }
     ggml_graph_compute(&gf, &cplan);
