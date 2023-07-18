@@ -4,6 +4,7 @@
 #include "ggml/ggml.h"
 #include <cstring>
 #include <map>
+#include <stdbool.h>
 #include <thread>
 #include <vector>
 
@@ -38,10 +39,6 @@ struct clip_vision_hparams {
 // Vocab utils
 //
 
-std::string trim(const std::string & s);
-
-std::string replace(const std::string & s, const std::string & from, const std::string & to);
-
 struct clip_vocab {
     using id = int32_t;
     using token = std::string;
@@ -53,19 +50,14 @@ struct clip_vocab {
     void add_special_token(const std::string & token);
 };
 
-std::string convert_to_utf8(const std::wstring & input);
+// C-compatible structure representing a vector of IDs
+struct clip_tokens {
+    clip_vocab::id * data;
+    size_t size;
+};
 
-std::wstring convert_to_wstring(const std::string & input);
-
-// split text into tokens
 //
-// ref: https://github.com/openai/gpt-2/blob/a74da5d99abaaba920de8131d64da2862a8f213b/src/encoder.py#L53
-//
-// Regex (Python):
-// r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
-//
-// Regex (C++):
-// R"('s|'t|'re|'ve|'m|'ll|'d| ?[[:alpha:]]+| ?[[:digit:]]+| ?[^\s[:alpha:][:digit:]]+|\s+(?!\S)|\s+)"
+// clip layers
 //
 
 struct clip_layer {
@@ -179,7 +171,7 @@ struct clip_image_f32 {
     std::vector<float> data;
 };
 
-std::vector<clip_vocab::id> clip_tokenize(const clip_ctx * ctx, const std::string & text);
+struct clip_tokens clip_tokenize_c(const clip_ctx * ctx, const char * text);
 
 bool clip_image_load_from_file(const std::string & fname, clip_image_u8 & img);
 bool clip_image_preprocess(const clip_ctx * ctx, const clip_image_u8 * img, clip_image_f32 * res);
@@ -200,6 +192,9 @@ bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vec
 
 #ifdef __cplusplus
 }
+
+std::vector<clip_vocab::id> clip_tokenize(const clip_ctx * ctx, const std::string & text);
+
 #endif
 
 #endif // CLIP_H

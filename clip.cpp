@@ -138,6 +138,14 @@ std::vector<clip_vocab::id> clip_tokenize(const clip_ctx * ctx, const std::strin
     return tokens;
 }
 
+struct clip_tokens clip_tokenize_c(const clip_ctx * ctx, const char * text) {
+    clip_tokens c_tokens;
+    auto tokens = clip_tokenize(ctx, text);
+    c_tokens.data = tokens.data();
+    c_tokens.size = tokens.size();
+    return c_tokens;
+}
+
 bool clip_image_load_from_file(const std::string & fname, clip_image_u8 & img) {
     int nx, ny, nc;
     auto data = stbi_load(fname.c_str(), &nx, &ny, &nc, 3);
