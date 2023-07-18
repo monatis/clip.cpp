@@ -955,8 +955,13 @@ bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<cli
     ggml_set_name(embeddings, "check");
 
     // run the computation
+
     ggml_build_forward_expand(&gf, embeddings);
-    ggml_graph_compute_with_ctx(ctx0, &gf, n_threads);
+    ggml_cplan cplan = ggml_graph_plan(&gf, n_threads);
+    if (cplan.work_size != 0) {
+        cplan.work_data = (uint8_t *)malloc(cplan.work_size);
+    }
+    ggml_graph_compute(&gf, &cplan);
 
 // print
 #ifdef CLIP_DEBUG
@@ -1004,6 +1009,10 @@ bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<cli
     printf("used_mem = %zu\n", ggml_used_mem(ctx0));
 #endif
     memcpy(vec, ggml_get_data_f32(embeddings), sizeof(float) * projection_dim);
+
+    if (cplan.work_size != 0) {
+        free(cplan.work_data);
+    }
 
     ggml_free(ctx0);
 
@@ -1220,7 +1229,11 @@ bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vec
 
     // run the computation
     ggml_build_forward_expand(&gf, output);
-    ggml_graph_compute_with_ctx(ctx0, &gf, n_threads);
+    ggml_cplan cplan = ggml_graph_plan(&gf, n_threads);
+    if (cplan.work_size != 0) {
+        cplan.work_data = (uint8_t *)malloc(cplan.work_size);
+    }
+    ggml_graph_compute(&gf, &cplan);
 
 // print
 #ifdef CLIP_DEBUG
@@ -1270,6 +1283,10 @@ bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vec
 #endif
 
     memcpy(vec, ggml_get_data_f32(output), sizeof(float) * projection_dim * batch_size);
+
+    if (cplan.work_size != 0) {
+        free(cplan.work_data);
+    }
 
     ggml_free(ctx0);
 
