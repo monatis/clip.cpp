@@ -8,9 +8,9 @@
 #include <vector>
 
 // TODO: make the API in C
-// #ifdef __cplusplus
-// extern "C" {
-// #endif
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // default hparams for text_model (ViT-B/32)
 struct clip_text_hparams {
@@ -198,8 +198,8 @@ bool softmax_with_sorting(float * arr, int length, float * sorted_scores, int * 
 
 bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vector<clip_image_f32> & imgs, float * vec);
 
-// #ifdef __cplusplus
-// }
-// #endif
+#ifdef __cplusplus
+}
+#endif
 
 #endif // CLIP_H
