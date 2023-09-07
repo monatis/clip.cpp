@@ -139,11 +139,20 @@ std::vector<clip_vocab::id> clip_tokenize(const clip_ctx * ctx, const std::strin
 }
 
 struct clip_tokens clip_tokenize_c(const clip_ctx * ctx, const char * text) {
-    clip_tokens c_tokens;
-    auto tokens = clip_tokenize(ctx, text);
-    c_tokens.data = tokens.data();
+    std::vector<int> tokens = clip_tokenize(ctx, text);
+
+    clip_tokens c_tokens{};
     c_tokens.size = tokens.size();
+
+    c_tokens.data = new int[tokens.size()];
+    std::copy(tokens.begin(), tokens.end(), c_tokens.data);
+
     return c_tokens;
+}
+
+bool clip_image_load_from_file_c(const char * fname, clip_image_u8 & img) {
+    std::string _fname(fname);
+    return clip_image_load_from_file(_fname, img);
 }
 
 bool clip_image_load_from_file(const std::string & fname, clip_image_u8 & img) {
@@ -817,6 +826,11 @@ void clip_free(clip_ctx * ctx) {
     delete ctx;
 }
 
+bool clip_text_encode_c(const clip_ctx * ctx, int n_threads, const clip_tokens & tokens, float * vec) {
+    std::vector<int> _tokens(tokens.data, tokens.data + tokens.size);
+    return clip_text_encode(ctx, n_threads, _tokens, vec);
+}
+
 bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<clip_vocab::id> & tokens, float * vec) {
     const auto & model = ctx->text_model;
     const auto & hparams = model.hparams;
@@ -1311,6 +1325,11 @@ float clip_similarity_score(float * vec1, float * vec2, int vec_dim) {
     float clamped_dot_product = fmin(fmax(dot_product, 0.0), 1.0);
 
     return clamped_dot_product;
+}
+
+bool clip_compare_text_and_image_c(clip_ctx * ctx, int n_threads, char * text, clip_image_u8 & image, float * score) {
+    std::string _text(text);
+    return clip_compare_text_and_image(ctx, n_threads, _text, image, score);
 }
 
 bool clip_compare_text_and_image(clip_ctx * ctx, int n_threads, std::string & text, clip_image_u8 & image, float * score) {

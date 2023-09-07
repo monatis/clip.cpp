@@ -173,27 +173,35 @@ struct clip_image_f32 {
 
 struct clip_tokens clip_tokenize_c(const clip_ctx * ctx, const char * text);
 
-bool clip_image_load_from_file(const std::string & fname, clip_image_u8 & img);
+bool clip_image_load_from_file_c(const char * fname, clip_image_u8 & img);
 bool clip_image_preprocess(const clip_ctx * ctx, const clip_image_u8 * img, clip_image_f32 * res);
-void clip_image_batch_preprocess(const clip_ctx * ctx, const int n_threads, const std::vector<clip_image_u8> & img_inputs,
-                                 std::vector<clip_image_f32> & img_resized);
 
-bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<clip_vocab::id> & tokens, float * vec);
-
+bool clip_text_encode_c(const clip_ctx * ctx, int n_threads, const clip_tokens & tokens, float * vec);
 bool clip_image_encode(const clip_ctx * ctx, int n_threads, const clip_image_f32 & img, float * vec);
 
 // bool image_normalize(clip_image_u8 *img, clip_image_f32 *res);
 
-bool clip_compare_text_and_image(clip_ctx * ctx, int n_threads, std::string & text, clip_image_u8 & image, float * score);
+bool clip_compare_text_and_image_c(clip_ctx * ctx, int n_threads, char * text, clip_image_u8 & image, float * score);
 float clip_similarity_score(float * vec1, float * vec2, int vec_dim);
 bool softmax_with_sorting(float * arr, int length, float * sorted_scores, int * indices);
-
-bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vector<clip_image_f32> & imgs, float * vec);
 
 #ifdef __cplusplus
 }
 
 std::vector<clip_vocab::id> clip_tokenize(const clip_ctx * ctx, const std::string & text);
+
+bool clip_image_load_from_file(const std::string & fname, clip_image_u8 & img);
+
+bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<clip_vocab::id> & tokens, float * vec);
+
+bool clip_compare_text_and_image(clip_ctx * ctx, int n_threads, std::string & text, clip_image_u8 & image, float * score);
+
+// TODO clip_image_batch_encode_c
+bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vector<clip_image_f32> & imgs, float * vec);
+
+// TODO clip_image_batch_preprocess_c
+void clip_image_batch_preprocess(const clip_ctx * ctx, const int n_threads, const std::vector<clip_image_u8> & img_inputs,
+                                 std::vector<clip_image_f32> & img_resized);
 
 #endif
 
