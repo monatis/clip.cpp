@@ -172,7 +172,7 @@ clip_text_encode.argtypes = [
 ]
 clip_text_encode.restype = ctypes.c_bool
 
-clip_image_encode = clip_lib.clip_image_encode
+clip_image_encode = clip_lib.clip_image_encode_c
 clip_image_encode.argtypes = [
     ctypes.POINTER(ClipContext),
     ctypes.c_int,
@@ -208,14 +208,14 @@ softmax_with_sorting.argtypes = [
 ]
 softmax_with_sorting.restype = ctypes.c_bool
 
-clip_image_batch_encode = clip_lib.clip_image_batch_encode
-clip_image_batch_encode.argtypes = [
-    ctypes.POINTER(ctypes.c_void_p),
-    ctypes.c_int,
-    ctypes.POINTER(ClipImageF32),
-    ctypes.POINTER(ctypes.c_float),
-]
-clip_image_batch_encode.restype = ctypes.c_bool
+# clip_image_batch_encode = clip_lib.clip_image_batch_encode
+# clip_image_batch_encode.argtypes = [
+#     ctypes.POINTER(ctypes.c_void_p),
+#     ctypes.c_int,
+#     ctypes.POINTER(ClipImageF32),
+#     ctypes.POINTER(ctypes.c_float),
+# ]
+# clip_image_batch_encode.restype = ctypes.c_bool
 
 
 def _struct_to_dict(struct):
