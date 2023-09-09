@@ -262,7 +262,7 @@ class Clip:
     def load_preprocess_encode_image(self, image_path: str, n_threads: int = os.cpu_count()) -> List[float]:
         image_ptr = make_clip_image_u8()
         if not clip_image_load_from_file(image_path.encode("utf8"), image_ptr):
-            raise RuntimeError(f"Could not load image {image_path}")
+            raise RuntimeError(f"Could not load image '{image_path}'")
 
         processed_image_ptr = make_clip_image_f32()
         if not clip_image_preprocess(self.ctx, image_ptr, processed_image_ptr):
@@ -299,19 +299,18 @@ if __name__ == "__main__":
     import argparse
 
     ap = argparse.ArgumentParser(prog="clip")
-    ap.add_argument("-m", "--model", help="path to GGML file")
+    ap.add_argument("-m", "--model", help="path to GGML file", required=True)
     ap.add_argument("-v", "--verbosity", type=int, help="Level of verbosity. 0 = minimum, 2 = maximum", default=0)
+    ap.add_argument("-t", "--text", help="text to encode", required=True)
+    ap.add_argument("-i", "--image", help="path to an image file", required=True)
     args = ap.parse_args()
 
     clip = Clip(args.model, args.verbosity)
 
-    text = "an apple"
-    image_path = "../../tests/red_apple.jpg"
-
-    tokens = clip.tokenize(text)
+    tokens = clip.tokenize(args.text)
     text_embed = clip.encode_text(tokens)
 
-    image_embed = clip.load_preprocess_encode_image(image_path)
+    image_embed = clip.load_preprocess_encode_image(args.image)
 
     score = clip.calculate_similarity(text_embed, image_embed)
 
