@@ -217,6 +217,14 @@ softmax_with_sorting.restype = ctypes.c_bool
 # ]
 # clip_image_batch_encode.restype = ctypes.c_bool
 
+make_clip_image_u8 = clip_lib.make_clip_image_u8
+make_clip_image_u8.argtypes = []
+make_clip_image_u8.restype = ctypes.POINTER(ClipImageU8)
+
+make_clip_image_f32 = clip_lib.make_clip_image_f32
+make_clip_image_f32.argtypes = []
+make_clip_image_f32.restype = ctypes.POINTER(ClipImageF32)
+
 
 def _struct_to_dict(struct):
     return dict((field, getattr(struct, field)) for field, _ in struct._fields_)
@@ -251,22 +259,17 @@ class Clip:
 
         return [txt_vec[i] for i in range(self.vec_dim)]
 
-    def load_preprocess_encode_image(
-            self,
-            image_path: str,
-            n_threads: int = os.cpu_count(),
-            # Initializing here as a temporary workaround for SIGSEGV when done inside the function scope
-            image: ClipImageU8 = ClipImageU8(),
-            processed_image: ClipImageF32 = ClipImageF32(),
-    ) -> List[float]:
-        if not clip_image_load_from_file(image_path.encode("utf8"), ctypes.pointer(image)):
+    def load_preprocess_encode_image(self, image_path: str, n_threads: int = os.cpu_count()) -> List[float]:
+        image_ptr = make_clip_image_u8()
+        if not clip_image_load_from_file(image_path.encode("utf8"), image_ptr):
             raise RuntimeError(f"Could not load image {image_path}")
 
-        if not clip_image_preprocess(self.ctx, ctypes.pointer(image), ctypes.pointer(processed_image)):
+        processed_image_ptr = make_clip_image_f32()
+        if not clip_image_preprocess(self.ctx, image_ptr, processed_image_ptr):
             raise RuntimeError("Could not preprocess image")
 
         img_vec = (ctypes.c_float * self.vec_dim)()
-        if not clip_image_encode(self.ctx, n_threads, ctypes.pointer(processed_image), img_vec):
+        if not clip_image_encode(self.ctx, n_threads, processed_image_ptr, img_vec):
             raise RuntimeError("Could not encode image")
 
         return [img_vec[i] for i in range(self.vec_dim)]
@@ -277,21 +280,13 @@ class Clip:
 
         return clip_similarity_score(txt_vec, img_vec, self.vec_dim)
 
-    def compare_text_and_image(
-            self,
-            text: str,
-            image_path: str,
-            n_threads: int = os.cpu_count(),
-            # Initializing here as a temporary workaround for SIGSEGV when done inside the function scope
-            image: ClipImageU8 = ClipImageU8(),
-    ) -> float:
-        if not clip_image_load_from_file(image_path.encode("utf8"), ctypes.pointer(image)):
+    def compare_text_and_image(self, text: str, image_path: str, n_threads: int = os.cpu_count()) -> float:
+        image_ptr = make_clip_image_u8()
+        if not clip_image_load_from_file(image_path.encode("utf8"), image_ptr):
             raise RuntimeError(f"Could not load image {image_path}")
 
         score = ctypes.c_float()
-        if not clip_compare_text_and_image(
-                self.ctx, n_threads, text.encode("utf8"), ctypes.pointer(image), ctypes.pointer(score)
-        ):
+        if not clip_compare_text_and_image(self.ctx, n_threads, text.encode("utf8"), image_ptr, ctypes.pointer(score)):
             raise RuntimeError("Could not compare text and image")
 
         return score.value
