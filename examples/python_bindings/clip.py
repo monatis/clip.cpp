@@ -233,8 +233,8 @@ def _struct_to_dict(struct):
 class Clip:
     def __init__(self, model_file: str, verbosity: int = 0):
         self.ctx = clip_model_load(model_file.encode("utf8"), verbosity)
-        # TODO vision_config has wrong values for some reason, hard-coding vec_dim temporarily
-        self.vec_dim = 512
+        # TODO vision_config has wrong values for some reason, @fixme
+        self.vec_dim = self.text_config["projection_dim"]
 
     @property
     def vision_config(self) -> Dict[str, Any]:
@@ -248,18 +248,24 @@ class Clip:
         tokens = clip_tokenize(self.ctx, text.encode("utf8"))
         return [tokens.data[i] for i in range(tokens.size)]
 
-    def encode_text(self, tokens: List[int], n_threads: int = os.cpu_count()) -> List[float]:
+    def encode_text(
+        self, tokens: List[int], n_threads: int = os.cpu_count()
+    ) -> List[float]:
         tokens_array = (ClipVocabId * len(tokens))(*tokens)
         clip_tokens = ClipTokens(data=tokens_array, size=len(tokens))
 
         txt_vec = (ctypes.c_float * self.vec_dim)()
 
-        if not clip_text_encode(self.ctx, n_threads, ctypes.pointer(clip_tokens), txt_vec):
+        if not clip_text_encode(
+            self.ctx, n_threads, ctypes.pointer(clip_tokens), txt_vec
+        ):
             raise RuntimeError("Could not encode text")
 
         return [txt_vec[i] for i in range(self.vec_dim)]
 
-    def load_preprocess_encode_image(self, image_path: str, n_threads: int = os.cpu_count()) -> List[float]:
+    def load_preprocess_encode_image(
+        self, image_path: str, n_threads: int = os.cpu_count()
+    ) -> List[float]:
         image_ptr = make_clip_image_u8()
         if not clip_image_load_from_file(image_path.encode("utf8"), image_ptr):
             raise RuntimeError(f"Could not load image '{image_path}'")
@@ -274,19 +280,25 @@ class Clip:
 
         return [img_vec[i] for i in range(self.vec_dim)]
 
-    def calculate_similarity(self, text_embedding: List[float], image_embedding: List[float]) -> float:
+    def calculate_similarity(
+        self, text_embedding: List[float], image_embedding: List[float]
+    ) -> float:
         img_vec = (ctypes.c_float * self.vec_dim)(*image_embedding)
         txt_vec = (ctypes.c_float * self.vec_dim)(*text_embedding)
 
         return clip_similarity_score(txt_vec, img_vec, self.vec_dim)
 
-    def compare_text_and_image(self, text: str, image_path: str, n_threads: int = os.cpu_count()) -> float:
+    def compare_text_and_image(
+        self, text: str, image_path: str, n_threads: int = os.cpu_count()
+    ) -> float:
         image_ptr = make_clip_image_u8()
         if not clip_image_load_from_file(image_path.encode("utf8"), image_ptr):
             raise RuntimeError(f"Could not load image {image_path}")
 
         score = ctypes.c_float()
-        if not clip_compare_text_and_image(self.ctx, n_threads, text.encode("utf8"), image_ptr, ctypes.pointer(score)):
+        if not clip_compare_text_and_image(
+            self.ctx, n_threads, text.encode("utf8"), image_ptr, ctypes.pointer(score)
+        ):
             raise RuntimeError("Could not compare text and image")
 
         return score.value
@@ -300,7 +312,13 @@ if __name__ == "__main__":
 
     ap = argparse.ArgumentParser(prog="clip")
     ap.add_argument("-m", "--model", help="path to GGML file", required=True)
-    ap.add_argument("-v", "--verbosity", type=int, help="Level of verbosity. 0 = minimum, 2 = maximum", default=0)
+    ap.add_argument(
+        "-v",
+        "--verbosity",
+        type=int,
+        help="Level of verbosity. 0 = minimum, 2 = maximum",
+        default=0,
+    )
     ap.add_argument("-t", "--text", help="text to encode", required=True)
     ap.add_argument("-i", "--image", help="path to an image file", required=True)
     args = ap.parse_args()
