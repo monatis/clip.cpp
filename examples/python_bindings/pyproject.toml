@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "clip_cpp"
+version = "0.2.0"
+description = "CLIP inference with no big dependencies as PyTorch, TensorFlow, Numpy"
+authors = ["Yusuf Sarıgöz <yusufsarigoz@gmail.com>"]
+packages = [
+    {include = "clip_cpp"},
+]
+include = [
+{path = "clip_cpp/libclip.so"}
+]
+
+readme = "README.md"
+homepage = "https://github.com/monatis"
+repository = "https://github.com/monatis/clip.cpp"
+keywords = ["ggml", "clip", "clip.cpp", "image embeddings", "image search"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+]
+
+[tool.poetry.dependencies]
+python = ">=3.8"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+
+[build-system]
+requires = ["poetry-core>=1.7.0"]
+build-backend = "poetry.core.masonry.api"
