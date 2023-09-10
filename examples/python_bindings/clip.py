@@ -241,7 +241,6 @@ def _struct_to_dict(struct):
 class Clip:
     def __init__(self, model_file: str, verbosity: int = 0):
         self.ctx = clip_model_load(model_file.encode("utf8"), verbosity)
-        # TODO vision_config has wrong values for some reason, @fixme
         self.vec_dim = self.text_config["projection_dim"]
 
     @property
