@@ -137,8 +137,19 @@ See [examples/image-search/README.md](examples/image-search/README.md) for more 
 
 ## Python bindings
 You can use clip.cpp in Python with no third-party libraries (no dependencies other than standard Python libraries).
-It uses `ctypes` to load a dynamically linked library (DLL).
-You must compile with `-DBUILD_SHARED_LIBS=ON` option to get the required DLL.
+It uses `ctypes` to load a dynamically linked library (DLL) to interface the implementation in C/C++.
+
+If you are on an X64 Linux distribution, you can simply Pip-install it with AVX2 support:
+
+```sh
+pip install clip_cpp
+```
+
+If you are on another operating system or architecture,
+or if you want to make use of support for instruction sets other than AVX2 (e.g., AVX512),
+you can build it from source.
+
+All you need is to compile with `-DBUILD_SHARED_LIBS=ON` option to get the required DLL.
 
 ```sh
 mkdir build
