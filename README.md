@@ -16,6 +16,7 @@ This repo is aimed at powering useful applications based on such models on compu
 clip.cpp also has a short startup time compared to large ML frameworks, which makes it suitable for serverless deployments where the cold start is an issue.
 
 ## Hot topics
+- 09/11/2023: Introduce Python bindings.
 - 07/12/2023: Batch inference support for image encoding.
 - 07/11/2023: Semantic image search [example](examples/image-search/README.md) directly in C++.
 
@@ -133,6 +134,25 @@ make
 ```
 
 See [examples/image-search/README.md](examples/image-search/README.md) for more info and usage.
+
+## Python bindings
+You can use clip.cpp in Python with no third-party libraries (no dependencies other than standard Python libraries).
+It uses `ctypes` to load a dynamically linked library (DLL).
+You must compile with `-DBUILD_SHARED_LIBS=ON` option to get the required DLL.
+
+```sh
+mkdir build
+
+cd build
+
+cmake -DBUILD_SHARED_LIBS=ON ..
+
+make
+```
+
+And find the `libclip.so` binary in the `build` directory.
+See [examples/python_bindings/README.md](examples/python_bindings/README.md) for more info and usage.
+
 
 ## Benchmarking
 You can use the benchmarking utility to compare the performances of different checkpoints and quantization types.

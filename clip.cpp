@@ -150,9 +150,13 @@ struct clip_tokens clip_tokenize_c(const clip_ctx * ctx, const char * text) {
     return c_tokens;
 }
 
-bool clip_image_load_from_file_c(const char * fname, clip_image_u8 & img) {
+clip_image_u8 * make_clip_image_u8() { return new clip_image_u8(); }
+
+clip_image_f32 * make_clip_image_f32() { return new clip_image_f32(); }
+
+bool clip_image_load_from_file_c(const char * fname, clip_image_u8 * img) {
     std::string _fname(fname);
-    return clip_image_load_from_file(_fname, img);
+    return clip_image_load_from_file(_fname, *img);
 }
 
 bool clip_image_load_from_file(const std::string & fname, clip_image_u8 & img) {
@@ -726,7 +730,7 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
             }
 
             if (tensor->ne[0] != ne[0] || tensor->ne[1] != ne[1]) {
-                fprintf(stderr, "%s: tensor '%s' has wrong shape in model file: got [%lld, %lld], expected [%lld, %lld]\n",
+                fprintf(stderr, "%s: tensor '%s' has wrong shape in model file: got [%ld, %ld], expected [%ld, %ld]\n",
                         __func__, name.data(), tensor->ne[0], tensor->ne[1], ne[0], ne[1]);
                 clip_free(new_clip);
                 return nullptr;
@@ -739,7 +743,7 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
                     "q4_0",
                     "q4_1",
                 };
-                printf("%24s - [%5lld, %5lld], type = %6s, %6.2f MB, %9zu bytes\n", name.data(), ne[0], ne[1], ftype_str[ftype],
+                printf("%24s - [%5ld, %5ld], type = %6s, %6.2f MB, %9zu bytes\n", name.data(), ne[0], ne[1], ftype_str[ftype],
                        ggml_nbytes(tensor) / 1024.0 / 1024.0, ggml_nbytes(tensor));
             }
 
@@ -826,8 +830,8 @@ void clip_free(clip_ctx * ctx) {
     delete ctx;
 }
 
-bool clip_text_encode_c(const clip_ctx * ctx, int n_threads, const clip_tokens & tokens, float * vec) {
-    std::vector<int> _tokens(tokens.data, tokens.data + tokens.size);
+bool clip_text_encode_c(const clip_ctx * ctx, int n_threads, const clip_tokens * tokens, float * vec) {
+    std::vector<int> _tokens(tokens->data, tokens->data + tokens->size);
     return clip_text_encode(ctx, n_threads, _tokens, vec);
 }
 
@@ -1039,6 +1043,10 @@ bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<cli
     ggml_free(ctx0);
 
     return true;
+}
+
+bool clip_image_encode_c(const clip_ctx * ctx, int n_threads, const clip_image_f32 * img, float * vec) {
+    return clip_image_encode(ctx, n_threads, *img, vec);
 }
 
 bool clip_image_encode(const clip_ctx * ctx, int n_threads, const clip_image_f32 & img, float * vec) {
@@ -1327,9 +1335,9 @@ float clip_similarity_score(float * vec1, float * vec2, int vec_dim) {
     return clamped_dot_product;
 }
 
-bool clip_compare_text_and_image_c(clip_ctx * ctx, int n_threads, char * text, clip_image_u8 & image, float * score) {
+bool clip_compare_text_and_image_c(clip_ctx * ctx, int n_threads, char * text, clip_image_u8 * image, float * score) {
     std::string _text(text);
-    return clip_compare_text_and_image(ctx, n_threads, _text, image, score);
+    return clip_compare_text_and_image(ctx, n_threads, _text, *image, score);
 }
 
 bool clip_compare_text_and_image(clip_ctx * ctx, int n_threads, std::string & text, clip_image_u8 & image, float * score) {
@@ -1439,3 +1447,6 @@ bool image_normalize(clip_image_u8 * img, clip_image_f32 * res) {
     }
     return true;
 }
+
+struct clip_text_hparams * clip_get_text_hparams(struct clip_ctx * ctx) { return &ctx->text_model.hparams; }
+struct clip_vision_hparams * clip_get_vision_hparams(struct clip_ctx * ctx) { return &ctx->vision_model.hparams; }

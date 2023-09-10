@@ -14,3 +14,7 @@ target_link_libraries(main PRIVATE clip common-clip ggml)
 add_executable(zsl zsl.cpp)
 target_compile_features(zsl PUBLIC cxx_std_11)
 target_link_libraries(zsl PRIVATE clip common-clip ggml)
+
+add_executable(main_c main.c)
+target_compile_features(main_c PUBLIC c_std_11)
+target_link_libraries(main_c PRIVATE clip ggml)
