@@ -36,16 +36,17 @@ struct clip_vision_hparams {
     int32_t n_layer;
 };
 
-
 // default hparams for ViT-B/32
 #ifdef __cplusplus
 namespace DefaultHParams {
-    static constexpr clip_text_hparams text = {49408, 77, 512, 2048, 512, 8, 12};
-    static constexpr clip_vision_hparams vision = {224, 32, 768, 3072, 512, 12, 12};
-}
+static constexpr clip_text_hparams text = {49408, 77, 512, 2048, 512, 8, 12};
+static constexpr clip_vision_hparams vision = {224, 32, 768, 3072, 512, 12, 12};
+} // namespace DefaultHParams
 #else
-#define DEFAULT_TEXT_HPARAMS { 49408, 77, 512, 2048, 512, 8, 12 }
-#define DEFAULT_VISION_HPARAMS { 224, 32, 768, 3072, 512, 12, 12 }
+#define DEFAULT_TEXT_HPARAMS                                                                                                   \
+    { 49408, 77, 512, 2048, 512, 8, 12 }
+#define DEFAULT_VISION_HPARAMS                                                                                                 \
+    { 224, 32, 768, 3072, 512, 12, 12 }
 #endif
 
 //
@@ -192,6 +193,9 @@ struct clip_ctx {
 
 void clip_free(struct clip_ctx * ctx);
 
+struct clip_text_hparams * clip_get_text_hparams(struct clip_ctx * ctx);
+struct clip_vision_hparams * clip_get_vision_hparams(struct clip_ctx * ctx);
+
 // RGB uint8 image
 struct clip_image_u8 {
     int nx;
@@ -225,7 +229,8 @@ bool clip_image_encode_c(const struct clip_ctx * ctx, int n_threads, const struc
 
 // bool image_normalize(clip_image_u8 *img, clip_image_f32 *res);
 
-bool clip_compare_text_and_image_c(struct clip_ctx * ctx, int n_threads, char * text, struct clip_image_u8 * image, float * score);
+bool clip_compare_text_and_image_c(struct clip_ctx * ctx, int n_threads, char * text, struct clip_image_u8 * image,
+                                   float * score);
 float clip_similarity_score(float * vec1, float * vec2, int vec_dim);
 bool softmax_with_sorting(float * arr, int length, float * sorted_scores, int * indices);
 

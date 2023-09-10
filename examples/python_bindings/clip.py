@@ -147,6 +147,14 @@ clip_model_load.restype = ctypes.POINTER(ClipContext)
 clip_free = clip_lib.clip_free
 clip_free.argtypes = [ctypes.POINTER(ClipContext)]
 
+clip_get_text_hparams = clip_lib.clip_get_text_hparams
+clip_get_text_hparams.argtypes = [ctypes.POINTER(ClipContext)]
+clip_get_text_hparams.restype = ctypes.POINTER(ClipTextHparams)
+
+clip_get_vision_hparams = clip_lib.clip_get_vision_hparams
+clip_get_vision_hparams.argtypes = [ctypes.POINTER(ClipContext)]
+clip_get_vision_hparams.restype = ctypes.POINTER(ClipVisionHparams)
+
 clip_tokenize = clip_lib.clip_tokenize_c
 clip_tokenize.argtypes = [ctypes.POINTER(ClipContext), ctypes.c_char_p]
 clip_tokenize.restype = ClipTokens
@@ -238,11 +246,11 @@ class Clip:
 
     @property
     def vision_config(self) -> Dict[str, Any]:
-        return _struct_to_dict(self.ctx.contents.vision_model.hparams)
+        return _struct_to_dict(clip_get_vision_hparams(self.ctx).contents)
 
     @property
     def text_config(self) -> Dict[str, Any]:
-        return _struct_to_dict(self.ctx.contents.text_model.hparams)
+        return _struct_to_dict(clip_get_text_hparams(self.ctx).contents)
 
     def tokenize(self, text: str) -> List[int]:
         tokens = clip_tokenize(self.ctx, text.encode("utf8"))
@@ -336,3 +344,5 @@ if __name__ == "__main__":
     # score = clip.compare_text_and_image(text, image_path)
 
     print(f"Similarity score: {score}")
+    print(clip.vision_config)
+    print(clip.text_config)
