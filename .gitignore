@@ -4,3 +4,5 @@ build/
 *.swp
 models/*.bin
 *.so
+__pycache__
+dist
