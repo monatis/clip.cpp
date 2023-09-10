@@ -5,7 +5,9 @@ from typing import List, Dict, Any
 # Note: Pass -DBUILD_SHARED_LIBS=ON to cmake to create the shared library file
 
 # Load the shared library
-path_to_dll = os.environ.get("CLIP_DLL", "./libclip.so")
+path_to_dll = os.environ.get(
+    "CLIP_DLL", os.path.join(os.path.abspath(os.path.dirname(__file__)), "libclip.so")
+)
 
 clip_lib = ctypes.CDLL(path_to_dll)
 
@@ -343,5 +345,3 @@ if __name__ == "__main__":
     # score = clip.compare_text_and_image(text, image_path)
 
     print(f"Similarity score: {score}")
-    print(clip.vision_config)
-    print(clip.text_config)
