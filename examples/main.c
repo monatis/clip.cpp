@@ -15,8 +15,7 @@ int main() {
         return 1;
     }
 
-    // Should be ctx->vision_model.hparams.projection_dim
-    int vec_dim = 512;
+    int vec_dim = clip_get_vision_hparams(ctx)->projection_dim;
 
     // Load image from disk
     struct clip_image_u8 *img0 = make_clip_image_u8();
