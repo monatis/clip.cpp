@@ -883,7 +883,7 @@ bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<cli
 
         // layernorm1
         {
-            cur = ggml_norm(ctx0, cur);
+            cur = ggml_norm(ctx0, cur, 1e-5f);
 
             cur = ggml_add(ctx0, ggml_mul(ctx0, ggml_repeat(ctx0, model.layers[il].ln_1_w, cur), cur),
                            ggml_repeat(ctx0, model.layers[il].ln_1_b, cur));
@@ -933,7 +933,7 @@ bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<cli
 
         // layernorm2
         {
-            cur = ggml_norm(ctx0, cur);
+            cur = ggml_norm(ctx0, cur, 1e-5f);
 
             cur = ggml_add(ctx0, ggml_mul(ctx0, ggml_repeat(ctx0, model.layers[il].ln_2_w, cur), cur),
                            ggml_repeat(ctx0, model.layers[il].ln_2_b, cur));
@@ -959,7 +959,7 @@ bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<cli
 
     // final -layer_norm
     {
-        embeddings = ggml_norm(ctx0, embeddings);
+        embeddings = ggml_norm(ctx0, embeddings, 1e-5f);
 
         embeddings = ggml_add(ctx0, ggml_mul(ctx0, ggml_repeat(ctx0, model.post_ln_w, embeddings), embeddings),
                               ggml_repeat(ctx0, model.post_ln_b, embeddings));
@@ -1136,7 +1136,7 @@ bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vec
 
     // pre-layernorm
     {
-        embeddings = ggml_norm(ctx0, embeddings);
+        embeddings = ggml_norm(ctx0, embeddings, 1e-5f);
 
         embeddings = ggml_add(ctx0, ggml_mul(ctx0, ggml_repeat(ctx0, model.pre_ln_w, embeddings), embeddings),
                               ggml_repeat(ctx0, model.pre_ln_b, embeddings));
@@ -1152,7 +1152,7 @@ bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vec
 
         // layernorm1
         {
-            cur = ggml_norm(ctx0, cur);
+            cur = ggml_norm(ctx0, cur, 1e-5f);
 
             cur = ggml_add(ctx0, ggml_mul(ctx0, ggml_repeat(ctx0, model.layers[il].ln_1_w, cur), cur),
                            ggml_repeat(ctx0, model.layers[il].ln_1_b, cur));
@@ -1202,7 +1202,7 @@ bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vec
 
         // layernorm2
         {
-            cur = ggml_norm(ctx0, cur);
+            cur = ggml_norm(ctx0, cur, 1e-5f);
 
             cur = ggml_add(ctx0, ggml_mul(ctx0, ggml_repeat(ctx0, model.layers[il].ln_2_w, cur), cur),
                            ggml_repeat(ctx0, model.layers[il].ln_2_b, cur));
@@ -1235,7 +1235,7 @@ bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vec
 
     // post-layernorm
     {
-        embeddings = ggml_norm(ctx0, embeddings);
+        embeddings = ggml_norm(ctx0, embeddings, 1e-4f);
 
         embeddings = ggml_add(ctx0, ggml_mul(ctx0, ggml_repeat(ctx0, model.post_ln_w, embeddings), embeddings),
                               ggml_repeat(ctx0, model.post_ln_b, embeddings));
@@ -1260,6 +1260,7 @@ bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vec
     // run the computation
     ggml_build_forward_expand(&gf, output);
     ggml_cplan cplan = ggml_graph_plan(&gf, n_threads);
+    cplan.work_size *= batch_size;
     if (cplan.work_size != 0) {
         cplan.work_data = (uint8_t *)malloc(cplan.work_size);
     }
@@ -1395,16 +1396,18 @@ bool softmax_with_sorting(float * arr, int length, float * sorted_scores, int * 
     }
 
     // Calculate softmax probabilities
+    /*
     float max_val = arr[0];
     for (int i = 1; i < length; i++) {
         if (arr[i] > max_val) {
             max_val = arr[i];
         }
     }
+*/
 
     float sum = 0.0;
     for (int i = 0; i < length; i++) {
-        arr[i] = exp(arr[i] - max_val);
+        arr[i] = exp(arr[i]);
         sum += arr[i];
     }
 
