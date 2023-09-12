@@ -224,8 +224,10 @@ struct clip_image_f32 * make_clip_image_f32();
 bool clip_image_load_from_file_c(const char * fname, struct clip_image_u8 * img);
 bool clip_image_preprocess(const struct clip_ctx * ctx, const struct clip_image_u8 * img, struct clip_image_f32 * res);
 
-bool clip_text_encode_c(const struct clip_ctx * ctx, int n_threads, const struct clip_tokens * tokens, float * vec);
-bool clip_image_encode_c(const struct clip_ctx * ctx, int n_threads, const struct clip_image_f32 * img, float * vec);
+bool clip_text_encode_c(const struct clip_ctx * ctx, int n_threads, const struct clip_tokens * tokens, float * vec,
+                        const bool normalize);
+bool clip_image_encode_c(const struct clip_ctx * ctx, int n_threads, const struct clip_image_f32 * img, float * vec,
+                         const bool normalize);
 
 // bool image_normalize(clip_image_u8 *img, clip_image_f32 *res);
 
@@ -241,13 +243,16 @@ std::vector<clip_vocab::id> clip_tokenize(const clip_ctx * ctx, const std::strin
 
 bool clip_image_load_from_file(const std::string & fname, clip_image_u8 & img);
 
-bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<clip_vocab::id> & tokens, float * vec);
-bool clip_image_encode(const struct clip_ctx * ctx, int n_threads, const struct clip_image_f32 & img, float * vec);
+bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<clip_vocab::id> & tokens, float * vec,
+                      const bool normalize);
+bool clip_image_encode(const struct clip_ctx * ctx, int n_threads, const struct clip_image_f32 & img, float * vec,
+                       const bool normalize);
 
 bool clip_compare_text_and_image(clip_ctx * ctx, int n_threads, std::string & text, clip_image_u8 & image, float * score);
 
 // TODO clip_image_batch_encode_c
-bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vector<clip_image_f32> & imgs, float * vec);
+bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vector<clip_image_f32> & imgs, float * vec,
+                             const bool normalize);
 
 // TODO clip_image_batch_preprocess_c
 void clip_image_batch_preprocess(const clip_ctx * ctx, const int n_threads, const std::vector<clip_image_u8> & img_inputs,

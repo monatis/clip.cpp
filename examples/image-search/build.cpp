@@ -126,7 +126,7 @@ int main(int argc, char ** argv) {
 
                 clip_image_batch_preprocess(clip_ctx, params.n_threads, img_inputs, imgs_resized);
 
-                clip_image_batch_encode(clip_ctx, params.n_threads, imgs_resized, vec.data());
+                clip_image_batch_encode(clip_ctx, params.n_threads, imgs_resized, vec.data(), true);
 
                 // add image vectors to the database
                 for (size_t b = 0; b < batch_size; b++) {
@@ -162,7 +162,7 @@ int main(int argc, char ** argv) {
                 }
 
                 clip_image_batch_preprocess(clip_ctx, params.n_threads, img_inputs, imgs_resized);
-                clip_image_batch_encode(clip_ctx, params.n_threads, imgs_resized, vec.data());
+                clip_image_batch_encode(clip_ctx, params.n_threads, imgs_resized, vec.data(), true);
 
                 // add image vectors to the database
                 for (size_t l = 0; l < leftover; l++) {
