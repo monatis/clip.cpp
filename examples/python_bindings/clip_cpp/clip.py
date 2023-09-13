@@ -4,12 +4,15 @@ from typing import List, Dict, Any
 
 # Note: Pass -DBUILD_SHARED_LIBS=ON to cmake to create the shared library file
 
-# Load the shared library
-path_to_dll = os.environ.get(
-    "CLIP_DLL", os.path.join(os.path.abspath(os.path.dirname(__file__)), "libclip.so")
-)
+cur_dir = os.getcwd()
+this_dir = os.path.abspath(os.path.dirname(__file__))
 
-clip_lib = ctypes.CDLL(path_to_dll)
+# Load the shared library
+path_to_dll = os.environ.get("CLIP_DLL", this_dir)
+os.chdir(path_to_dll)
+ggml_lib = ctypes.CDLL("./libggml.so")
+clip_lib = ctypes.CDLL("./libclip.so")
+os.chdir(cur_dir)
 
 
 # Define the ctypes structures
@@ -278,7 +281,7 @@ class Clip:
         return [txt_vec[i] for i in range(self.vec_dim)]
 
     def load_preprocess_encode_image(
-        self, image_path: str, n_threads: int = os.cpu_count(), normalize: bool = true
+        self, image_path: str, n_threads: int = os.cpu_count(), normalize: bool = True
     ) -> List[float]:
         image_ptr = make_clip_image_u8()
         if not clip_image_load_from_file(image_path.encode("utf8"), image_ptr):

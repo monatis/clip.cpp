@@ -13,7 +13,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-#define CLIP_DEBUG
+// #define CLIP_DEBUG
 
 // utility function for a workaround until https://github.com/ggerganov/ggml/issues/260 is resolved
 // after that, remove this and use the mechanism implemented in GGML directly
