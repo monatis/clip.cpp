@@ -27,7 +27,7 @@ int main(int argc, char ** argv) {
     const char *img_path = params.image_paths[0].c_str();
     clip_image_u8 img0;
     if (!clip_image_load_from_file(img_path, &img0)) {
-        fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, img_path.c_str());
+        fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, img_path);
         return 1;
     }
 

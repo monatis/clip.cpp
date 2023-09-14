@@ -6,6 +6,9 @@
 #include <iostream>
 #include <pthread.h>
 #include <regex>
+#include <map>
+#include <thread>
+#include <vector>
 
 #include "clip.h"
 #include "ggml/ggml.h"
@@ -14,6 +17,115 @@
 #include "stb_image.h"
 
 // #define CLIP_DEBUG
+
+//
+// Vocab utils
+//
+
+struct clip_vocab {
+    using id = clip_vocab_id;
+    using token = std::string;
+
+    std::map<token, id> token_to_id;
+    std::map<id, token> id_to_token;
+    std::vector<std::string> special_tokens;
+
+//    void add_special_token(const std::string & token);
+};
+
+//
+// clip layers
+//
+
+struct clip_layer {
+    // attention
+    struct ggml_tensor * k_w;
+    struct ggml_tensor * k_b;
+    struct ggml_tensor * q_w;
+    struct ggml_tensor * q_b;
+    struct ggml_tensor * v_w;
+    struct ggml_tensor * v_b;
+
+    struct ggml_tensor * o_w;
+    struct ggml_tensor * o_b;
+
+    // layernorm 1
+    struct ggml_tensor * ln_1_w;
+    struct ggml_tensor * ln_1_b;
+
+    // ff
+    struct ggml_tensor * ff_i_w;
+    struct ggml_tensor * ff_i_b;
+
+    struct ggml_tensor * ff_o_w;
+    struct ggml_tensor * ff_o_b;
+
+    // layernorm 2
+    struct ggml_tensor * ln_2_w;
+    struct ggml_tensor * ln_2_b;
+};
+
+struct clip_text_model {
+    struct clip_text_hparams hparams;
+
+    // embeddings
+    struct ggml_tensor * token_embeddings;
+    struct ggml_tensor * position_embeddings;
+
+    std::vector<clip_layer> layers;
+
+    struct ggml_tensor * post_ln_w;
+    struct ggml_tensor * post_ln_b;
+
+    struct ggml_tensor * projection;
+
+    std::map<std::string, struct ggml_tensor *> tensors;
+};
+
+struct clip_vision_model {
+    struct clip_vision_hparams hparams;
+
+    // embeddings
+    struct ggml_tensor * class_embedding;
+    struct ggml_tensor * patch_embeddings;
+    struct ggml_tensor * position_embeddings;
+
+    struct ggml_tensor * pre_ln_w;
+    struct ggml_tensor * pre_ln_b;
+
+    std::vector<clip_layer> layers;
+
+    struct ggml_tensor * post_ln_w;
+    struct ggml_tensor * post_ln_b;
+
+    struct ggml_tensor * projection;
+
+    std::map<std::string, struct ggml_tensor *> tensors;
+};
+
+// Replacement for std::vector<uint8_t> that doesn't require zero-initialization.
+struct clip_buffer {
+    uint8_t * data = NULL;
+    size_t size = 0;
+
+    void resize(size_t size) {
+        delete[] data;
+        data = new uint8_t[size];
+        this->size = size;
+    }
+
+    ~clip_buffer() { delete[] data; }
+};
+
+struct clip_ctx {
+    struct clip_text_model text_model;
+    struct clip_vision_model vision_model;
+    struct clip_vocab vocab;
+    int32_t use_gelu = 0;
+    int32_t ftype = 1;
+    struct ggml_context * ctx;
+    struct clip_buffer buf_compute;
+};
 
 // utility function for a workaround until https://github.com/ggerganov/ggml/issues/260 is resolved
 // after that, remove this and use the mechanism implemented in GGML directly
@@ -158,8 +270,9 @@ bool clip_image_load_from_file(const char * fname, clip_image_u8 * img) {
 
     img->nx = nx;
     img->ny = ny;
-    img->data.resize(nx * ny * 3);
-    memcpy(img->data.data(), data, nx * ny * 3);
+    img->size = nx * ny * 3;
+    img->data = new uint8_t[img->size]();
+    memcpy(img->data, data, img->size);
 
     stbi_image_free(data);
 
@@ -177,7 +290,8 @@ bool clip_image_preprocess(const clip_ctx * ctx, const clip_image_u8 * img, clip
 
     res->nx = nx2;
     res->ny = ny2;
-    res->data.resize(3 * nx2 * ny2);
+    res->size = 3 * nx2 * ny2;
+    res->data = new float[res->size]();
 
     const float scale = std::max(nx, ny) / (float)ctx->vision_model.hparams.image_size;
 

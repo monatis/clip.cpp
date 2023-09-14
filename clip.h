@@ -3,15 +3,8 @@
 
 #include "ggml/ggml.h"
 
-#ifdef __cplusplus
-#include <cstring>
-#include <map>
-#include <stdbool.h>
-#include <thread>
-#include <vector>
-#endif
+struct clip_ctx;
 
-// TODO: make the API in C
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,147 +35,13 @@ struct clip_vision_hparams {
 #define DEFAULT_VISION_HPARAMS                                                                                                 \
     { 224, 32, 768, 3072, 512, 12, 12 }
 
-//
-// Vocab utils
-//
-
-#ifndef __cplusplus
 typedef int32_t clip_vocab_id;
-#endif
-
-struct clip_vocab {
-#ifdef __cplusplus
-    using id = int32_t;
-    using token = std::string;
-
-    std::map<token, id> token_to_id;
-    std::map<id, token> id_to_token;
-    std::vector<std::string> special_tokens;
-
-    void add_special_token(const std::string & token);
-#endif
-};
-
-// C-compatible structure representing a vector of IDs
 struct clip_tokens {
-#ifdef __cplusplus
-    clip_vocab::id * data;
-#else
     clip_vocab_id * data;
-#endif
     size_t size;
 };
 
-//
-// clip layers
-//
-
-struct clip_layer {
-    // attention
-    struct ggml_tensor * k_w;
-    struct ggml_tensor * k_b;
-    struct ggml_tensor * q_w;
-    struct ggml_tensor * q_b;
-    struct ggml_tensor * v_w;
-    struct ggml_tensor * v_b;
-
-    struct ggml_tensor * o_w;
-    struct ggml_tensor * o_b;
-
-    // layernorm 1
-    struct ggml_tensor * ln_1_w;
-    struct ggml_tensor * ln_1_b;
-
-    // ff
-    struct ggml_tensor * ff_i_w;
-    struct ggml_tensor * ff_i_b;
-
-    struct ggml_tensor * ff_o_w;
-    struct ggml_tensor * ff_o_b;
-
-    // layernorm 2
-    struct ggml_tensor * ln_2_w;
-    struct ggml_tensor * ln_2_b;
-};
-
-struct clip_text_model {
-    struct clip_text_hparams hparams;
-
-    // embeddings
-    struct ggml_tensor * token_embeddings;
-    struct ggml_tensor * position_embeddings;
-
-#ifdef __cplusplus
-    std::vector<clip_layer> layers;
-#endif
-
-    struct ggml_tensor * post_ln_w;
-    struct ggml_tensor * post_ln_b;
-
-    struct ggml_tensor * projection;
-
-#ifdef __cplusplus
-    std::map<std::string, struct ggml_tensor *> tensors;
-#endif
-};
-
-struct clip_vision_model {
-    struct clip_vision_hparams hparams;
-
-    // embeddings
-    struct ggml_tensor * class_embedding;
-    struct ggml_tensor * patch_embeddings;
-    struct ggml_tensor * position_embeddings;
-
-    struct ggml_tensor * pre_ln_w;
-    struct ggml_tensor * pre_ln_b;
-
-#ifdef __cplusplus
-    std::vector<clip_layer> layers;
-#endif
-
-    struct ggml_tensor * post_ln_w;
-    struct ggml_tensor * post_ln_b;
-
-    struct ggml_tensor * projection;
-
-#ifdef __cplusplus
-    std::map<std::string, struct ggml_tensor *> tensors;
-#endif
-};
-
 struct clip_ctx * clip_model_load(const char * fname, const int verbosity);
-
-// Replacement for std::vector<uint8_t> that doesn't require zero-initialization.
-struct clip_buffer {
-#ifdef __cplusplus
-    uint8_t * data = NULL;
-    size_t size = 0;
-
-    void resize(size_t size) {
-        delete[] data;
-        data = new uint8_t[size];
-        this->size = size;
-    }
-
-    ~clip_buffer() { delete[] data; }
-#endif
-};
-
-struct clip_ctx {
-    struct clip_text_model text_model;
-    struct clip_vision_model vision_model;
-    struct clip_vocab vocab;
-#ifdef __cplusplus
-    int32_t use_gelu = 0;
-    int32_t ftype = 1;
-#else
-    int32_t use_gelu;
-    int32_t ftype;
-#endif
-    struct ggml_context * ctx;
-    struct clip_buffer buf_compute;
-};
 
 void clip_free(struct clip_ctx * ctx);
 
@@ -193,21 +52,17 @@ struct clip_vision_hparams * clip_get_vision_hparams(struct clip_ctx * ctx);
 struct clip_image_u8 {
     int nx;
     int ny;
-
-#ifdef __cplusplus
-    std::vector<uint8_t> data;
-#endif
+    uint8_t * data;
+    size_t size;
 };
 
-// RGB float32 image
+// RGB float32 image (NHWC)
 // Memory layout: RGBRGBRGB...
 struct clip_image_f32 {
     int nx;
     int ny;
-
-#ifdef __cplusplus
-    std::vector<float> data;
-#endif
+    float * data;
+    size_t size;
 };
 
 struct clip_image_u8_batch {
