@@ -16,6 +16,7 @@ This repo is aimed at powering useful applications based on such models on compu
 clip.cpp also has a short startup time compared to large ML frameworks, which makes it suitable for serverless deployments where the cold start is an issue.
 
 ## Hot topics
+- 09/14/2023: All functions are C-compatible now. `zsl` example is updated to match Huggingface's zero-shot behavior in the zero-shot pipeline.
 - 09/11/2023: Introduce Python bindings.
 - 07/12/2023: Batch inference support for image encoding.
 - 07/11/2023: Semantic image search [example](examples/image-search/README.md) directly in C++.
