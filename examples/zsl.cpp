@@ -22,7 +22,7 @@ int main(int argc, char ** argv) {
     }
 
     // load the image
-    const char * img_path = params.image_paths[0].c_str();
+    const auto & img_path = params.image_paths[0].c_str();
     clip_image_u8 img0;
     clip_image_f32 img_res;
     if (!clip_image_load_from_file(img_path, &img0)) {
@@ -44,7 +44,7 @@ int main(int argc, char ** argv) {
     float similarities[n_labels];
 
     for (int i = 0; i < n_labels; i++) {
-        const char * text = params.texts[i].c_str();
+        const auto & text = params.texts[i].c_str();
         auto tokens = clip_tokenize(ctx, text);
         clip_text_encode(ctx, params.n_threads, &tokens, txt_vec, false);
         similarities[i] = clip_similarity_score(img_vec, txt_vec, vec_dim);
