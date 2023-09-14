@@ -83,19 +83,19 @@ bool clip_image_load_from_file(const char * fname, struct clip_image_u8 * img);
 bool clip_image_preprocess(const struct clip_ctx * ctx, const struct clip_image_u8 * img, struct clip_image_f32 * res);
 
 bool clip_text_encode(const struct clip_ctx * ctx, const int n_threads, const struct clip_tokens * tokens, float * vec,
-        const bool normalize);
+                      const bool normalize);
 bool clip_image_encode(const struct clip_ctx * ctx, const int n_threads, struct clip_image_f32 * img, float * vec,
-        const bool normalize);
+                       const bool normalize);
 
 void clip_image_batch_preprocess(const struct clip_ctx * ctx, const int n_threads,
-        const struct clip_image_u8_batch * img_inputs, struct clip_image_f32_batch * imgs_resized);
+                                 const struct clip_image_u8_batch * img_inputs, struct clip_image_f32_batch * imgs_resized);
 bool clip_image_batch_encode(const struct clip_ctx * ctx, const int n_threads, const struct clip_image_f32_batch * imgs,
-        float * vec, const bool normalize);
+                             float * vec, const bool normalize);
 
 // bool image_normalize(const clip_image_u8 *img, clip_image_f32 *res);
 
 bool clip_compare_text_and_image(const struct clip_ctx * ctx, const int n_threads, const char * text,
-        const struct clip_image_u8 * image, float * score);
+                                 const struct clip_image_u8 * image, float * score);
 float clip_similarity_score(const float * vec1, const float * vec2, const int vec_dim);
 bool softmax_with_sorting(float * arr, const int length, float * sorted_scores, int * indices);
 

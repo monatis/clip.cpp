@@ -4,9 +4,9 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <pthread.h>
 #include <regex>
-#include <map>
 #include <thread>
 #include <vector>
 
@@ -30,7 +30,7 @@ struct clip_vocab {
     std::map<id, token> id_to_token;
     std::vector<std::string> special_tokens;
 
-//    void add_special_token(const std::string & token);
+    //    void add_special_token(const std::string & token);
 };
 
 //
@@ -343,6 +343,7 @@ bool clip_image_preprocess(const clip_ctx * ctx, const clip_image_u8 * img, clip
 
     return true;
 }
+
 // Structure to hold the image data as an input to function to be executed for thread
 typedef struct {
     const clip_image_u8 * input;
@@ -1147,8 +1148,7 @@ bool clip_text_encode(const clip_ctx * ctx, const int n_threads, const clip_toke
     return true;
 }
 
-bool clip_image_encode(const clip_ctx * ctx, const int n_threads, clip_image_f32 * img, float * vec,
-                       const bool normalize) {
+bool clip_image_encode(const clip_ctx * ctx, const int n_threads, clip_image_f32 * img, float * vec, const bool normalize) {
     clip_image_f32_batch imgs{};
     imgs.size = 1;
     imgs.data = img;
@@ -1436,8 +1436,8 @@ float clip_similarity_score(const float * vec1, const float * vec2, const int ve
     return dot_product;
 }
 
-bool clip_compare_text_and_image(const clip_ctx * ctx, const int n_threads, const char * text,
-                                 const clip_image_u8 * image, float * score) {
+bool clip_compare_text_and_image(const clip_ctx * ctx, const int n_threads, const char * text, const clip_image_u8 * image,
+                                 float * score) {
     // prepare image and text vectors
     const int projection_dim = ctx->vision_model.hparams.projection_dim;
     float img_vec[projection_dim];

@@ -24,7 +24,7 @@ int main(int argc, char ** argv) {
     const int64_t t_image_load_us = ggml_time_us();
 
     // load the image
-    const char *img_path = params.image_paths[0].c_str();
+    const char * img_path = params.image_paths[0].c_str();
     clip_image_u8 img0;
     if (!clip_image_load_from_file(img_path, &img0)) {
         fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, img_path);
@@ -33,7 +33,7 @@ int main(int argc, char ** argv) {
 
     const int64_t t_similarity_score = ggml_time_us();
 
-    const char *text = params.texts[0].c_str();
+    const char * text = params.texts[0].c_str();
     float score;
 
     clip_compare_text_and_image(ctx, params.n_threads, text, &img0, &score);
