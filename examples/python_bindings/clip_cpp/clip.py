@@ -1,6 +1,11 @@
 import ctypes
 import os
-from typing import List, Dict, Any
+from glob import glob
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+
+from huggingface_hub import model_info, snapshot_download
+from huggingface_hub.utils import validate_repo_id, HFValidationError, RepositoryNotFoundError
 
 # Note: Pass -DBUILD_SHARED_LIBS=ON to cmake to create the shared library file
 
@@ -182,9 +187,117 @@ def _struct_to_dict(struct):
 
 
 class Clip:
-    def __init__(self, model_file: str, verbosity: int = 0):
-        self.ctx = clip_model_load(model_file.encode("utf8"), verbosity)
+    def __init__(
+        self,
+        model_path_or_repo_id: str,
+        model_file: Optional[str] = None,
+        revision: Optional[str] = None,
+        verbosity: int = 0):
+        """
+        Loads the language model from a local file or remote repo.
+
+        Args:
+        ---
+            :param model_path_or_repo_id: str
+                The path to a model file  
+                or the name of a Hugging Face model repo.
+
+            :param model_file: str | None
+              The name of the model file in Hugging Face repo, 
+              if not specified the first bin file from the repo is choosen.
+
+            :param revision: str | None
+                The specific model version to use. It can be a branch  
+                name, a tag name, or a commit id.
+            :param verbosity: int { 0, 1, 2 } Default = 0
+                How much verbose the model, 2 is more verbose
+
+        """
+
+        model_path = None
+        p = Path(model_path_or_repo_id)
+
+        if p.is_file(): 
+            model_path = model_path_or_repo_id
+        
+        elif p.is_dir():
+            model_path = self._find_model_path_from_dir(
+                model_path_or_repo_id, model_file
+            )
+        
+        else:
+            try:
+                validate_repo_id(model_path_or_repo_id)
+                model_path = self._find_model_path_from_repo(
+                    model_path_or_repo_id,
+                    model_file,
+                    revision=revision,
+                )
+            except HFValidationError as not_valid_repo_id:
+                raise not_valid_repo_id
+            
+        self.ctx = clip_model_load(model_path.encode("utf8"), verbosity)
         self.vec_dim = self.text_config["projection_dim"]
+        
+
+
+    @classmethod
+    def _find_model_path_from_repo(
+        cls,
+        repo_id: str,
+        filename: Optional[str] = None,
+        revision: Optional[str] = None,
+    ) -> str:
+        if not filename:
+            filename = cls._find_model_file_from_repo(
+                repo_id=repo_id,
+                revision=revision,
+            )
+        allow_patterns = filename or ["*.bin" ] #TODO add "*.gguf"
+        path = snapshot_download(
+            repo_id=repo_id,
+            allow_patterns=allow_patterns,
+            revision=revision,
+        )
+        return cls._find_model_path_from_dir(path, filename=filename)
+    
+    @classmethod
+    def _find_model_file_from_repo(
+        cls,
+        repo_id: str,
+        revision: Optional[str] = None,
+    ) -> Optional[str]:
+        try:
+            repo_info = model_info(
+                repo_id=repo_id,
+                files_metadata=True,
+                revision=revision,
+            )
+            files = [
+                (f.size, f.rfilename)
+                for f in repo_info.siblings
+                #TODO add or f.rfilename.endswith(".gguf")
+                if f.rfilename.endswith(".bin") 
+            ]
+            return min(files)[1]
+        except RepositoryNotFoundError:
+            raise ValueError(f"No repo found with id '{repo_id}'")
+
+    @classmethod  
+    def _find_model_path_from_dir(
+        path: str,
+        filename: Optional[str] = None,
+        ) -> str:
+            
+            path = Path(path).resolve()
+            if filename:
+                file = path.joinpath(filename).resolve()
+                if not file.is_file():
+                    raise ValueError(f"Model file '{filename}' not found in '{path}'")
+                return str(file)
+            files = glob(path.joinpath("*.bin")) #TODO add ".gguf"
+            file = min(files, key=lambda x: x[0])[1]
+            return file.resolve().__str__()
 
     @property
     def vision_config(self) -> Dict[str, Any]:

@@ -4,7 +4,8 @@ from clip_cpp import Clip
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(prog="clip")
-    ap.add_argument("-m", "--model", help="path to GGML file", required=True)
+    ap.add_argument("-m", "--model", help="path to GGML file or repo_id", required=True)
+    ap.add_argument("-fn", "--filename", help="path to GGML file in the Hugging face repo", required=False)
     ap.add_argument(
         "-v",
         "--verbosity",
