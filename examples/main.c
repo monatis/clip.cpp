@@ -20,7 +20,7 @@ int main() {
 
     // Load image from disk
     struct clip_image_u8 * img0 = make_clip_image_u8();
-    if (!clip_image_load_from_file_c(img_path, img0)) {
+    if (!clip_image_load_from_file(img_path, img0)) {
         fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, img_path);
         return 1;
     }
@@ -34,17 +34,17 @@ int main() {
 
     // Encode image
     float img_vec[vec_dim];
-    if (!clip_image_encode_c(ctx, n_threads, img_res, img_vec, true)) {
+    if (!clip_image_encode(ctx, n_threads, img_res, img_vec, true)) {
         fprintf(stderr, "%s: failed to encode image\n", __func__);
         return 1;
     }
 
     // Tokenize text
-    struct clip_tokens tokens = clip_tokenize_c(ctx, text);
+    struct clip_tokens tokens = clip_tokenize(ctx, text);
 
     // Encode text
     float txt_vec[vec_dim];
-    if (!clip_text_encode_c(ctx, n_threads, &tokens, txt_vec, true)) {
+    if (!clip_text_encode(ctx, n_threads, &tokens, txt_vec, true)) {
         fprintf(stderr, "%s: failed to encode text\n", __func__);
         return 1;
     }

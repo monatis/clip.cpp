@@ -128,12 +128,12 @@ int main(int argc, char ** argv) {
         printf("%s: index files size missmatch\n", __func__);
     }
 
-    const size_t vec_dim = clip_ctx->vision_model.hparams.projection_dim;
+    const int vec_dim = clip_get_vision_hparams(clip_ctx)->projection_dim;
     std::vector<float> vec(vec_dim);
 
     if (!params.img_path.empty()) {
         clip_image_u8 img0;
-        if (!clip_image_load_from_file(params.img_path, img0)) {
+        if (!clip_image_load_from_file(params.img_path.c_str(), &img0)) {
             fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, params.img_path.c_str());
             clip_free(clip_ctx);
             return 1;
@@ -142,16 +142,16 @@ int main(int argc, char ** argv) {
         clip_image_f32 img_res;
         clip_image_preprocess(clip_ctx, &img0, &img_res);
 
-        if (!clip_image_encode(clip_ctx, params.n_threads, img_res, vec.data(), true)) {
+        if (!clip_image_encode(clip_ctx, params.n_threads, &img_res, vec.data(), true)) {
             fprintf(stderr, "%s: failed to encode image from '%s'\n", __func__, params.img_path.c_str());
             clip_free(clip_ctx);
             return 1;
         }
     } else {
 
-        auto tokens = clip_tokenize(clip_ctx, params.search_text);
+        auto tokens = clip_tokenize(clip_ctx, params.search_text.c_str());
 
-        clip_text_encode(clip_ctx, params.n_threads, tokens, vec.data(), true);
+        clip_text_encode(clip_ctx, params.n_threads, &tokens, vec.data(), true);
     }
 
     auto results = embd_index.search({vec.data(), vec.size()}, params.n_results);

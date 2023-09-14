@@ -60,63 +60,6 @@ class ClipTokens(ctypes.Structure):
     ]
 
 
-class ClipLayer(ctypes.Structure):
-    _fields_ = [
-        ("k_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("k_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("q_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("q_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("v_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("v_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("o_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("o_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("ln_1_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("ln_1_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("ff_i_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("ff_i_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("ff_o_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("ff_o_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("ln_2_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("ln_2_b", ctypes.POINTER(ctypes.c_void_p)),
-    ]
-
-
-class ClipTextModel(ctypes.Structure):
-    _fields_ = [
-        ("hparams", ClipTextHparams),
-        ("token_embeddings", ctypes.POINTER(ctypes.c_void_p)),
-        ("position_embeddings", ctypes.POINTER(ctypes.c_void_p)),
-        ("layers", ctypes.POINTER(ClipLayer)),
-        ("post_ln_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("post_ln_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("projection", ctypes.POINTER(ctypes.c_void_p)),
-        ("tensors", ctypes.POINTER(ctypes.c_void_p)),
-    ]
-
-
-class ClipVisionModel(ctypes.Structure):
-    _fields_ = [
-        ("hparams", ClipVisionHparams),
-        ("class_embedding", ctypes.POINTER(ctypes.c_void_p)),
-        ("patch_embeddings", ctypes.POINTER(ctypes.c_void_p)),
-        ("position_embeddings", ctypes.POINTER(ctypes.c_void_p)),
-        ("pre_ln_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("pre_ln_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("layers", ctypes.POINTER(ClipLayer)),
-        ("post_ln_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("post_ln_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("projection", ctypes.POINTER(ctypes.c_void_p)),
-        ("tensors", ctypes.POINTER(ctypes.c_void_p)),
-    ]
-
-
-class ClipBuffer(ctypes.Structure):
-    _fields_ = [
-        ("data", ctypes.POINTER(ctypes.c_uint8)),
-        ("size", ctypes.c_size_t),
-    ]
-
-
 class ClipImageU8(ctypes.Structure):
     _fields_ = [
         ("nx", ctypes.c_int),
@@ -134,14 +77,7 @@ class ClipImageF32(ctypes.Structure):
 
 
 class ClipContext(ctypes.Structure):
-    _fields_ = [
-        ("text_model", ClipTextModel),
-        ("vision_model", ClipVisionModel),
-        ("vocab", ClipVocab),
-        ("use_gelu", ctypes.c_int32),
-        ("ftype", ctypes.c_int32),
-        ("buf_compute", ClipBuffer),
-    ]
+    pass
 
 
 # Load the functions from the shared library
@@ -160,11 +96,11 @@ clip_get_vision_hparams = clip_lib.clip_get_vision_hparams
 clip_get_vision_hparams.argtypes = [ctypes.POINTER(ClipContext)]
 clip_get_vision_hparams.restype = ctypes.POINTER(ClipVisionHparams)
 
-clip_tokenize = clip_lib.clip_tokenize_c
+clip_tokenize = clip_lib.clip_tokenize
 clip_tokenize.argtypes = [ctypes.POINTER(ClipContext), ctypes.c_char_p]
 clip_tokenize.restype = ClipTokens
 
-clip_image_load_from_file = clip_lib.clip_image_load_from_file_c
+clip_image_load_from_file = clip_lib.clip_image_load_from_file
 clip_image_load_from_file.argtypes = [ctypes.c_char_p, ctypes.POINTER(ClipImageU8)]
 clip_image_load_from_file.restype = ctypes.c_bool
 
@@ -176,7 +112,7 @@ clip_image_preprocess.argtypes = [
 ]
 clip_image_preprocess.restype = ctypes.c_bool
 
-clip_text_encode = clip_lib.clip_text_encode_c
+clip_text_encode = clip_lib.clip_text_encode
 clip_text_encode.argtypes = [
     ctypes.POINTER(ClipContext),
     ctypes.c_int,
@@ -186,7 +122,7 @@ clip_text_encode.argtypes = [
 ]
 clip_text_encode.restype = ctypes.c_bool
 
-clip_image_encode = clip_lib.clip_image_encode_c
+clip_image_encode = clip_lib.clip_image_encode
 clip_image_encode.argtypes = [
     ctypes.POINTER(ClipContext),
     ctypes.c_int,
@@ -196,7 +132,7 @@ clip_image_encode.argtypes = [
 ]
 clip_image_encode.restype = ctypes.c_bool
 
-clip_compare_text_and_image = clip_lib.clip_compare_text_and_image_c
+clip_compare_text_and_image = clip_lib.clip_compare_text_and_image
 clip_compare_text_and_image.argtypes = [
     ctypes.POINTER(ClipContext),
     ctypes.c_int,
