@@ -35,7 +35,7 @@ int main(int argc, char ** argv) {
     clip_image_preprocess(ctx, &img0, &img_res);
 
     float img_vec[vec_dim];
-    if (!clip_image_encode(ctx, params.n_threads, img_res, img_vec)) {
+    if (!clip_image_encode(ctx, params.n_threads, img_res, img_vec, false)) {
         return 1;
     }
 
@@ -45,7 +45,7 @@ int main(int argc, char ** argv) {
 
     for (int i = 0; i < n_labels; i++) {
         auto tokens = clip_tokenize(ctx, params.texts[i]);
-        clip_text_encode(ctx, params.n_threads, tokens, txt_vec);
+        clip_text_encode(ctx, params.n_threads, tokens, txt_vec, false);
         similarities[i] = clip_similarity_score(img_vec, txt_vec, vec_dim);
     }
 

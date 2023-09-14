@@ -1,15 +1,16 @@
 #include "clip.h"
-#include "stdio.h"
+#include <stdbool.h>
+#include <stdio.h>
 
 int main() {
-    char *model_path = "../../models/openai_clip-vit-base-patch32.ggmlv0.q4_1.bin";
-    char *img_path = "../../tests/red_apple.jpg";
-    char *text = "an apple";
+    char * model_path = "../../models/openai_clip-vit-base-patch32.ggmlv0.q4_1.bin";
+    char * img_path = "../../tests/red_apple.jpg";
+    char * text = "an apple";
     int n_threads = 4;
     int verbosity = 1;
 
     // Load CLIP model
-    struct clip_ctx *ctx = clip_model_load(model_path, verbosity);
+    struct clip_ctx * ctx = clip_model_load(model_path, verbosity);
     if (!ctx) {
         printf("%s: Unable  to load model from %s", __func__, model_path);
         return 1;
@@ -18,14 +19,14 @@ int main() {
     int vec_dim = clip_get_vision_hparams(ctx)->projection_dim;
 
     // Load image from disk
-    struct clip_image_u8 *img0 = make_clip_image_u8();
+    struct clip_image_u8 * img0 = make_clip_image_u8();
     if (!clip_image_load_from_file(img_path, img0)) {
         fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, img_path);
         return 1;
     }
 
     // Preprocess image
-    struct clip_image_f32 *img_res = make_clip_image_f32();
+    struct clip_image_f32 * img_res = make_clip_image_f32();
     if (!clip_image_preprocess(ctx, img0, img_res)) {
         fprintf(stderr, "%s: failed to preprocess image\n", __func__);
         return 1;

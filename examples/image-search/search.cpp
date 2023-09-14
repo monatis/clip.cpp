@@ -142,7 +142,7 @@ int main(int argc, char ** argv) {
         clip_image_f32 img_res;
         clip_image_preprocess(clip_ctx, &img0, &img_res);
 
-        if (!clip_image_encode(clip_ctx, params.n_threads, img_res, vec.data())) {
+        if (!clip_image_encode(clip_ctx, params.n_threads, img_res, vec.data(), true)) {
             fprintf(stderr, "%s: failed to encode image from '%s'\n", __func__, params.img_path.c_str());
             clip_free(clip_ctx);
             return 1;
@@ -151,7 +151,7 @@ int main(int argc, char ** argv) {
 
         auto tokens = clip_tokenize(clip_ctx, params.search_text);
 
-        clip_text_encode(clip_ctx, params.n_threads, tokens, vec.data());
+        clip_text_encode(clip_ctx, params.n_threads, tokens, vec.data(), true);
     }
 
     auto results = embd_index.search({vec.data(), vec.size()}, params.n_results);

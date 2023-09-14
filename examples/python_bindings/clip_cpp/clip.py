@@ -4,12 +4,15 @@ from typing import List, Dict, Any
 
 # Note: Pass -DBUILD_SHARED_LIBS=ON to cmake to create the shared library file
 
-# Load the shared library
-path_to_dll = os.environ.get(
-    "CLIP_DLL", os.path.join(os.path.abspath(os.path.dirname(__file__)), "libclip.so")
-)
+cur_dir = os.getcwd()
+this_dir = os.path.abspath(os.path.dirname(__file__))
 
-clip_lib = ctypes.CDLL(path_to_dll)
+# Load the shared library
+path_to_dll = os.environ.get("CLIP_DLL", this_dir)
+os.chdir(path_to_dll)
+ggml_lib = ctypes.CDLL("./libggml.so")
+clip_lib = ctypes.CDLL("./libclip.so")
+os.chdir(cur_dir)
 
 
 # Define the ctypes structures
@@ -179,6 +182,7 @@ clip_text_encode.argtypes = [
     ctypes.c_int,
     ctypes.POINTER(ClipTokens),
     ctypes.POINTER(ctypes.c_float),
+    ctypes.c_bool,
 ]
 clip_text_encode.restype = ctypes.c_bool
 
@@ -188,6 +192,7 @@ clip_image_encode.argtypes = [
     ctypes.c_int,
     ctypes.POINTER(ClipImageF32),
     ctypes.POINTER(ctypes.c_float),
+    ctypes.c_bool,
 ]
 clip_image_encode.restype = ctypes.c_bool
 
@@ -258,7 +263,10 @@ class Clip:
         return [tokens.data[i] for i in range(tokens.size)]
 
     def encode_text(
-        self, tokens: List[int], n_threads: int = os.cpu_count()
+        self,
+        tokens: List[int],
+        n_threads: int = os.cpu_count(),
+        normalize: bool = True,
     ) -> List[float]:
         tokens_array = (ClipVocabId * len(tokens))(*tokens)
         clip_tokens = ClipTokens(data=tokens_array, size=len(tokens))
@@ -266,14 +274,14 @@ class Clip:
         txt_vec = (ctypes.c_float * self.vec_dim)()
 
         if not clip_text_encode(
-            self.ctx, n_threads, ctypes.pointer(clip_tokens), txt_vec
+            self.ctx, n_threads, ctypes.pointer(clip_tokens), txt_vec, normalize
         ):
             raise RuntimeError("Could not encode text")
 
         return [txt_vec[i] for i in range(self.vec_dim)]
 
     def load_preprocess_encode_image(
-        self, image_path: str, n_threads: int = os.cpu_count()
+        self, image_path: str, n_threads: int = os.cpu_count(), normalize: bool = True
     ) -> List[float]:
         image_ptr = make_clip_image_u8()
         if not clip_image_load_from_file(image_path.encode("utf8"), image_ptr):
@@ -284,7 +292,9 @@ class Clip:
             raise RuntimeError("Could not preprocess image")
 
         img_vec = (ctypes.c_float * self.vec_dim)()
-        if not clip_image_encode(self.ctx, n_threads, processed_image_ptr, img_vec):
+        if not clip_image_encode(
+            self.ctx, n_threads, processed_image_ptr, img_vec, normalize
+        ):
             raise RuntimeError("Could not encode image")
 
         return [img_vec[i] for i in range(self.vec_dim)]

@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "clip_cpp"
-version = "0.2.0"
+version = "0.3.5"
 description = "CLIP inference with no big dependencies as PyTorch, TensorFlow, Numpy"
 authors = ["Yusuf Sarıgöz <yusufsarigoz@gmail.com>"]
 packages = [
     {include = "clip_cpp"},
 ]
 include = [
-{path = "clip_cpp/libclip.so"}
+{path = "clip_cpp/*.so"}
 ]
 
 readme = "README.md"

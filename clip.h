@@ -90,7 +90,7 @@ bool clip_image_encode(const struct clip_ctx * ctx, const int n_threads, struct 
 void clip_image_batch_preprocess(const struct clip_ctx * ctx, const int n_threads,
         const struct clip_image_u8_batch * img_inputs, struct clip_image_f32_batch * imgs_resized);
 bool clip_image_batch_encode(const struct clip_ctx * ctx, const int n_threads, const struct clip_image_f32_batch * imgs,
-        float * vec);
+        float * vec, const bool normalize);
 
 // bool image_normalize(const clip_image_u8 *img, clip_image_f32 *res);
 

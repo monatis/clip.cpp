@@ -67,25 +67,27 @@ def tokenize(self, text: str) -> List[int]:
 
 ```python
 def encode_text(
-    self, tokens: List[int], n_threads: int = os.cpu_count()
+    self, tokens: List[int], n_threads: int = os.cpu_count(), normalize: bool = True
 ) -> List[float]:
 ```
 
 - **Description**: Encodes a list of token IDs into a text embedding.
 - `tokens` (List[int]): A list of token IDs obtained through tokenization.
 - `n_threads` (int, optional): The number of CPU threads to use for encoding (default is the number of CPU cores).
+- `normalize` (bool, optional): Whether or not to normalize the output vector (default is `True`).
 
 #### 5. `load_preprocess_encode_image`
 
 ```python
 def load_preprocess_encode_image(
-    self, image_path: str, n_threads: int = os.cpu_count()
+    self, image_path: str, n_threads: int = os.cpu_count(), normalize: bool = True
 ) -> List[float]:
 ```
 
 - **Description**: Loads an image, preprocesses it, and encodes it into an image embedding.
 - `image_path` (str): The path to the image file to be encoded.
 - `n_threads` (int, optional): The number of CPU threads to use for encoding (default is the number of CPU cores).
+- `normalize` (bool, optional): Whether or not to normalize the output vector (default is `True`).
 
 #### 6. `calculate_similarity`
 
