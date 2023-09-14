@@ -1,6 +1,7 @@
 #ifndef COMMON_CLIP_H
 #define COMMON_CLIP_H
 
+#include "clip.h"
 #include <cstring>
 #include <map>
 #include <thread>
@@ -28,6 +29,10 @@ void print_help(int argc, char ** argv, app_params & params);
 
 // utils for debugging
 void write_floats_to_file(float * array, int size, char * filename);
+
+// constructor-like functions
+struct clip_image_u8_batch make_clip_image_u8_batch(std::vector<clip_image_u8> & images);
+struct clip_image_f32_batch make_clip_image_f32_batch(std::vector<clip_image_f32> & images);
 
 // #ifdef __cplusplus
 // }
