@@ -50,7 +50,7 @@ int main(int argc, char ** argv) {
     const size_t batch_size = 4;
     const size_t n_threads = 4;
 
-    const int vec_dim = ctx->text_model.hparams.projection_dim;
+    const int vec_dim = clip_get_text_hparams(ctx)->projection_dim;
 
     float txt_vecs[n_labels * vec_dim];
 
@@ -63,8 +63,8 @@ int main(int argc, char ** argv) {
     const int64_t t_start_encode_texts = ggml_time_us();
 
     for (const auto & entry : result) {
-        auto tokens = clip_tokenize(ctx, entry.first);
-        if (!clip_text_encode(ctx, n_threads, tokens, txt_vecs + label_idx * vec_dim, true)) {
+        auto tokens = clip_tokenize(ctx, entry.first.c_str());
+        if (!clip_text_encode(ctx, n_threads, &tokens, txt_vecs + label_idx * vec_dim, true)) {
             printf("%s: Could not encode the label at index %d: %s\n", __func__, label_idx, entry.first.c_str());
             return 1;
         }
@@ -103,15 +103,23 @@ int main(int argc, char ** argv) {
             for (size_t ib = i; ib < i + batch_size; ib++) {
                 std::string file_path = entry.second[ib];
 
-                if (!clip_image_load_from_file(file_path, img_inputs[ib % batch_size])) {
+                if (!clip_image_load_from_file(file_path.c_str(), &img_inputs[ib % batch_size])) {
                     printf("%s: cannot load file from %s\n", __func__, file_path.c_str());
                     return 1;
                 }
             }
 
-            clip_image_batch_preprocess(ctx, n_threads, img_inputs, imgs_resized);
+            auto img_inputs_batch = clip_image_u8_batch{};
+            img_inputs_batch.data = img_inputs.data();
+            img_inputs_batch.size = img_inputs.size();
 
-            clip_image_batch_encode(ctx, n_threads, imgs_resized, img_vecs, true);
+            auto imgs_resized_batch = clip_image_f32_batch{};
+            imgs_resized_batch.data = imgs_resized.data();
+            imgs_resized_batch.size = imgs_resized.size();
+
+            clip_image_batch_preprocess(ctx, n_threads, &img_inputs_batch, &imgs_resized_batch);
+
+            clip_image_batch_encode(ctx, n_threads, &imgs_resized_batch, img_vecs, true);
 
             for (size_t b = 0; b < batch_size; b++) {
                 for (size_t j = 0; j < n_labels; j++) {
