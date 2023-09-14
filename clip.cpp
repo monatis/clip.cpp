@@ -934,7 +934,8 @@ void clip_free(clip_ctx * ctx) {
     delete ctx;
 }
 
-bool clip_text_encode(const clip_ctx * ctx, const int n_threads, const clip_tokens * tokens, float * vec) {
+bool clip_text_encode(const clip_ctx * ctx, const int n_threads, const clip_tokens * tokens, float * vec,
+                      const bool normalize) {
     const auto & model = ctx->text_model;
     const auto & hparams = model.hparams;
     const size_t N = tokens->size;
@@ -1074,8 +1075,10 @@ bool clip_text_encode(const clip_ctx * ctx, const int n_threads, const clip_toke
     embeddings = ggml_mul_mat(ctx0, model.projection, embeddings);
 
     // normalize output embeddings
-    ggml_tensor * length = ggml_sqrt(ctx0, ggml_sum(ctx0, ggml_sqr(ctx0, embeddings)));
-    embeddings = ggml_scale_inplace(ctx0, embeddings, ggml_div(ctx0, ggml_new_f32(ctx0, 1.0f), length));
+    if (normalize) {
+        ggml_tensor * length = ggml_sqrt(ctx0, ggml_sum(ctx0, ggml_sqr(ctx0, embeddings)));
+        embeddings = ggml_scale_inplace(ctx0, embeddings, ggml_div(ctx0, ggml_new_f32(ctx0, 1.0f), length));
+    }
 
     ggml_set_name(embeddings, "check");
 
@@ -1144,14 +1147,16 @@ bool clip_text_encode(const clip_ctx * ctx, const int n_threads, const clip_toke
     return true;
 }
 
-bool clip_image_encode(const clip_ctx * ctx, const int n_threads, clip_image_f32 * img, float * vec) {
+bool clip_image_encode(const clip_ctx * ctx, const int n_threads, clip_image_f32 * img, float * vec,
+                       const bool normalize) {
     clip_image_f32_batch imgs{};
     imgs.size = 1;
     imgs.data = img;
-    return clip_image_batch_encode(ctx, n_threads, &imgs, vec);
+    return clip_image_batch_encode(ctx, n_threads, &imgs, vec, normalize);
 }
 
-bool clip_image_batch_encode(const clip_ctx * ctx, const int n_threads, const clip_image_f32_batch * imgs, float * vec) {
+bool clip_image_batch_encode(const clip_ctx * ctx, const int n_threads, const clip_image_f32_batch * imgs, float * vec,
+                             const bool normalize) {
     const auto & model = ctx->vision_model;
     const auto & hparams = model.hparams;
 
@@ -1347,8 +1352,10 @@ bool clip_image_batch_encode(const clip_ctx * ctx, const int n_threads, const cl
 
     for (int b = 0; b < batch_size; b++) {
         struct ggml_tensor * embedding = ggml_get_rows(ctx0, embeddings, ggml_new_i32(ctx0, b));
-        ggml_tensor * length = ggml_sqrt(ctx0, ggml_sum(ctx0, ggml_sqr(ctx0, embedding)));
-        embedding = ggml_scale_inplace(ctx0, embedding, ggml_div(ctx0, ggml_new_f32(ctx0, 1.0f), length));
+        if (normalize) {
+            ggml_tensor * length = ggml_sqrt(ctx0, ggml_sum(ctx0, ggml_sqr(ctx0, embedding)));
+            embedding = ggml_scale_inplace(ctx0, embedding, ggml_div(ctx0, ggml_new_f32(ctx0, 1.0f), length));
+        }
         output = ggml_acc(ctx0, output, embedding, output->nb[1], output->nb[2], output->nb[3], b * ggml_nbytes(embedding));
     }
     ggml_set_name(output, "check");
@@ -1426,10 +1433,7 @@ float clip_similarity_score(const float * vec1, const float * vec2, const int ve
         dot_product += vec1[i] * vec2[i];
     }
 
-    // Clamp the dot product to the range [0, 1].
-    float clamped_dot_product = fmin(fmax(dot_product, 0.0), 1.0);
-
-    return clamped_dot_product;
+    return dot_product;
 }
 
 bool clip_compare_text_and_image(const clip_ctx * ctx, const int n_threads, const char * text,
@@ -1446,14 +1450,14 @@ bool clip_compare_text_and_image(const clip_ctx * ctx, const int n_threads, cons
         return false;
     }
 
-    if (!clip_image_encode(ctx, n_threads, &img_res, img_vec)) {
+    if (!clip_image_encode(ctx, n_threads, &img_res, img_vec, true)) {
         return false;
     }
 
     // tokenize and encode text
     auto tokens = clip_tokenize(ctx, text);
 
-    if (!clip_text_encode(ctx, n_threads, &tokens, txt_vec)) {
+    if (!clip_text_encode(ctx, n_threads, &tokens, txt_vec, true)) {
         return false;
     }
 
@@ -1488,18 +1492,10 @@ bool softmax_with_sorting(float * arr, const int length, float * sorted_scores, 
     }
 
     // Calculate softmax probabilities
-    /*
-    float max_val = arr[0];
-    for (int i = 1; i < length; i++) {
-        if (arr[i] > max_val) {
-            max_val = arr[i];
-        }
-    }
-*/
 
-    float sum = 0.0;
+    double sum = 0.0;
     for (int i = 0; i < length; i++) {
-        arr[i] = exp(arr[i]);
+        arr[i] = exp(arr[i]) + 1e-9;
         sum += arr[i];
     }
 

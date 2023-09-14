@@ -82,8 +82,10 @@ struct clip_image_f32 * make_clip_image_f32();
 bool clip_image_load_from_file(const char * fname, struct clip_image_u8 * img);
 bool clip_image_preprocess(const struct clip_ctx * ctx, const struct clip_image_u8 * img, struct clip_image_f32 * res);
 
-bool clip_text_encode(const struct clip_ctx * ctx, const int n_threads, const struct clip_tokens * tokens, float * vec);
-bool clip_image_encode(const struct clip_ctx * ctx, const int n_threads, struct clip_image_f32 * img, float * vec);
+bool clip_text_encode(const struct clip_ctx * ctx, const int n_threads, const struct clip_tokens * tokens, float * vec,
+        const bool normalize);
+bool clip_image_encode(const struct clip_ctx * ctx, const int n_threads, struct clip_image_f32 * img, float * vec,
+        const bool normalize);
 
 void clip_image_batch_preprocess(const struct clip_ctx * ctx, const int n_threads,
         const struct clip_image_u8_batch * img_inputs, struct clip_image_f32_batch * imgs_resized);

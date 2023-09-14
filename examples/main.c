@@ -33,7 +33,7 @@ int main() {
 
     // Encode image
     float img_vec[vec_dim];
-    if (!clip_image_encode(ctx, n_threads, img_res, img_vec)) {
+    if (!clip_image_encode(ctx, n_threads, img_res, img_vec, true)) {
         fprintf(stderr, "%s: failed to encode image\n", __func__);
         return 1;
     }
@@ -43,7 +43,7 @@ int main() {
 
     // Encode text
     float txt_vec[vec_dim];
-    if (!clip_text_encode(ctx, n_threads, &tokens, txt_vec)) {
+    if (!clip_text_encode(ctx, n_threads, &tokens, txt_vec, true)) {
         fprintf(stderr, "%s: failed to encode text\n", __func__);
         return 1;
     }
