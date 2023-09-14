@@ -157,11 +157,11 @@ clip_get_vision_hparams = clip_lib.clip_get_vision_hparams
 clip_get_vision_hparams.argtypes = [ctypes.POINTER(ClipContext)]
 clip_get_vision_hparams.restype = ctypes.POINTER(ClipVisionHparams)
 
-clip_tokenize = clip_lib.clip_tokenize_c
+clip_tokenize = clip_lib.clip_tokenize
 clip_tokenize.argtypes = [ctypes.POINTER(ClipContext), ctypes.c_char_p]
 clip_tokenize.restype = ClipTokens
 
-clip_image_load_from_file = clip_lib.clip_image_load_from_file_c
+clip_image_load_from_file = clip_lib.clip_image_load_from_file
 clip_image_load_from_file.argtypes = [ctypes.c_char_p, ctypes.POINTER(ClipImageU8)]
 clip_image_load_from_file.restype = ctypes.c_bool
 
@@ -173,7 +173,7 @@ clip_image_preprocess.argtypes = [
 ]
 clip_image_preprocess.restype = ctypes.c_bool
 
-clip_text_encode = clip_lib.clip_text_encode_c
+clip_text_encode = clip_lib.clip_text_encode
 clip_text_encode.argtypes = [
     ctypes.POINTER(ClipContext),
     ctypes.c_int,
@@ -182,7 +182,7 @@ clip_text_encode.argtypes = [
 ]
 clip_text_encode.restype = ctypes.c_bool
 
-clip_image_encode = clip_lib.clip_image_encode_c
+clip_image_encode = clip_lib.clip_image_encode
 clip_image_encode.argtypes = [
     ctypes.POINTER(ClipContext),
     ctypes.c_int,
@@ -191,7 +191,7 @@ clip_image_encode.argtypes = [
 ]
 clip_image_encode.restype = ctypes.c_bool
 
-clip_compare_text_and_image = clip_lib.clip_compare_text_and_image_c
+clip_compare_text_and_image = clip_lib.clip_compare_text_and_image
 clip_compare_text_and_image.argtypes = [
     ctypes.POINTER(ClipContext),
     ctypes.c_int,

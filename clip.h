@@ -37,17 +37,10 @@ struct clip_vision_hparams {
 };
 
 // default hparams for ViT-B/32
-#ifdef __cplusplus
-namespace DefaultHParams {
-static constexpr clip_text_hparams text = {49408, 77, 512, 2048, 512, 8, 12};
-static constexpr clip_vision_hparams vision = {224, 32, 768, 3072, 512, 12, 12};
-} // namespace DefaultHParams
-#else
 #define DEFAULT_TEXT_HPARAMS                                                                                                   \
     { 49408, 77, 512, 2048, 512, 8, 12 }
 #define DEFAULT_VISION_HPARAMS                                                                                                 \
     { 224, 32, 768, 3072, 512, 12, 12 }
-#endif
 
 //
 // Vocab utils
@@ -217,42 +210,40 @@ struct clip_image_f32 {
 #endif
 };
 
-struct clip_tokens clip_tokenize_c(const struct clip_ctx * ctx, const char * text);
+struct clip_image_u8_batch {
+    struct clip_image_u8 * data;
+    size_t size;
+};
+
+struct clip_image_f32_batch {
+    struct clip_image_f32 * data;
+    size_t size;
+};
+
+struct clip_tokens clip_tokenize(const struct clip_ctx * ctx, const char * text);
 
 struct clip_image_u8 * make_clip_image_u8();
 struct clip_image_f32 * make_clip_image_f32();
-bool clip_image_load_from_file_c(const char * fname, struct clip_image_u8 * img);
+bool clip_image_load_from_file(const char * fname, struct clip_image_u8 * img);
 bool clip_image_preprocess(const struct clip_ctx * ctx, const struct clip_image_u8 * img, struct clip_image_f32 * res);
 
-bool clip_text_encode_c(const struct clip_ctx * ctx, int n_threads, const struct clip_tokens * tokens, float * vec);
-bool clip_image_encode_c(const struct clip_ctx * ctx, int n_threads, const struct clip_image_f32 * img, float * vec);
+bool clip_text_encode(const struct clip_ctx * ctx, const int n_threads, const struct clip_tokens * tokens, float * vec);
+bool clip_image_encode(const struct clip_ctx * ctx, const int n_threads, struct clip_image_f32 * img, float * vec);
 
-// bool image_normalize(clip_image_u8 *img, clip_image_f32 *res);
+void clip_image_batch_preprocess(const struct clip_ctx * ctx, const int n_threads,
+        const struct clip_image_u8_batch * img_inputs, struct clip_image_f32_batch * imgs_resized);
+bool clip_image_batch_encode(const struct clip_ctx * ctx, const int n_threads, const struct clip_image_f32_batch * imgs,
+        float * vec);
 
-bool clip_compare_text_and_image_c(struct clip_ctx * ctx, int n_threads, char * text, struct clip_image_u8 * image,
-                                   float * score);
-float clip_similarity_score(float * vec1, float * vec2, int vec_dim);
-bool softmax_with_sorting(float * arr, int length, float * sorted_scores, int * indices);
+// bool image_normalize(const clip_image_u8 *img, clip_image_f32 *res);
+
+bool clip_compare_text_and_image(const struct clip_ctx * ctx, const int n_threads, const char * text,
+        const struct clip_image_u8 * image, float * score);
+float clip_similarity_score(const float * vec1, const float * vec2, const int vec_dim);
+bool softmax_with_sorting(float * arr, const int length, float * sorted_scores, int * indices);
 
 #ifdef __cplusplus
 }
-
-std::vector<clip_vocab::id> clip_tokenize(const clip_ctx * ctx, const std::string & text);
-
-bool clip_image_load_from_file(const std::string & fname, clip_image_u8 & img);
-
-bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<clip_vocab::id> & tokens, float * vec);
-bool clip_image_encode(const struct clip_ctx * ctx, int n_threads, const struct clip_image_f32 & img, float * vec);
-
-bool clip_compare_text_and_image(clip_ctx * ctx, int n_threads, std::string & text, clip_image_u8 & image, float * score);
-
-// TODO clip_image_batch_encode_c
-bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vector<clip_image_f32> & imgs, float * vec);
-
-// TODO clip_image_batch_preprocess_c
-void clip_image_batch_preprocess(const clip_ctx * ctx, const int n_threads, const std::vector<clip_image_u8> & img_inputs,
-                                 std::vector<clip_image_f32> & img_resized);
-
 #endif
 
 #endif // CLIP_H
