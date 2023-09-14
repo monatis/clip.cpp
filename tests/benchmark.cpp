@@ -35,7 +35,7 @@ int main(int argc, char ** argv) {
 
     size_t n_labels = result.size();
     if (n_labels < 2) {
-        printf("%s There must be at least 2 directories of images, but %d found\n", __func__, n_labels);
+        printf("%s There must be at least 2 directories of images, but %zu found\n", __func__, n_labels);
         return 1;
     }
 
@@ -50,7 +50,7 @@ int main(int argc, char ** argv) {
     const size_t batch_size = 4;
     const size_t n_threads = 4;
 
-    const int vec_dim = ctx->text_model.hparams.projection_dim;
+    const int vec_dim = clip_get_text_hparams(ctx)->projection_dim;
 
     float txt_vecs[n_labels * vec_dim];
 
@@ -63,8 +63,8 @@ int main(int argc, char ** argv) {
     const int64_t t_start_encode_texts = ggml_time_us();
 
     for (const auto & entry : result) {
-        auto tokens = clip_tokenize(ctx, entry.first);
-        if (!clip_text_encode(ctx, n_threads, tokens, txt_vecs + label_idx * vec_dim)) {
+        auto tokens = clip_tokenize(ctx, entry.first.c_str());
+        if (!clip_text_encode(ctx, n_threads, &tokens, txt_vecs + label_idx * vec_dim, true)) {
             printf("%s: Could not encode the label at index %d: %s\n", __func__, label_idx, entry.first.c_str());
             return 1;
         }
@@ -103,15 +103,18 @@ int main(int argc, char ** argv) {
             for (size_t ib = i; ib < i + batch_size; ib++) {
                 std::string file_path = entry.second[ib];
 
-                if (!clip_image_load_from_file(file_path, img_inputs[ib % batch_size])) {
+                if (!clip_image_load_from_file(file_path.c_str(), &img_inputs[ib % batch_size])) {
                     printf("%s: cannot load file from %s\n", __func__, file_path.c_str());
                     return 1;
                 }
             }
 
-            clip_image_batch_preprocess(ctx, n_threads, img_inputs, imgs_resized);
+            auto img_inputs_batch = make_clip_image_u8_batch(img_inputs);
+            auto imgs_resized_batch = make_clip_image_f32_batch(imgs_resized);
 
-            clip_image_batch_encode(ctx, n_threads, imgs_resized, img_vecs);
+            clip_image_batch_preprocess(ctx, n_threads, &img_inputs_batch, &imgs_resized_batch);
+
+            clip_image_batch_encode(ctx, n_threads, &imgs_resized_batch, img_vecs, true);
 
             for (size_t b = 0; b < batch_size; b++) {
                 for (size_t j = 0; j < n_labels; j++) {
@@ -153,7 +156,7 @@ int main(int argc, char ** argv) {
     float total_text_duration = (t_end_encode_texts - t_start_encode_texts) / 1000.0f;
     float total_image_duration = (t_end_encode_images - t_start_encode_images) / 1000.0f;
     fprintf(fout, "# Timings\n");
-    fprintf(fout, "- %d texts encoded in %8.2f ms (%8.2f ms per text)\n", n_labels, total_text_duration,
+    fprintf(fout, "- %zu texts encoded in %8.2f ms (%8.2f ms per text)\n", n_labels, total_text_duration,
             total_text_duration / (float)n_labels);
     fprintf(fout, "- %d images encoded in %8.2f ms (%8.2f ms per image)\n", n_total_items, total_image_duration,
             total_image_duration / (float)n_total_items);

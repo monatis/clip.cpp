@@ -4,8 +4,11 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <pthread.h>
 #include <regex>
+#include <thread>
+#include <vector>
 
 #include "clip.h"
 #include "ggml/ggml.h"
@@ -14,6 +17,115 @@
 #include "stb_image.h"
 
 // #define CLIP_DEBUG
+
+//
+// Vocab utils
+//
+
+struct clip_vocab {
+    using id = clip_vocab_id;
+    using token = std::string;
+
+    std::map<token, id> token_to_id;
+    std::map<id, token> id_to_token;
+    std::vector<std::string> special_tokens;
+
+    //    void add_special_token(const std::string & token);
+};
+
+//
+// clip layers
+//
+
+struct clip_layer {
+    // attention
+    struct ggml_tensor * k_w;
+    struct ggml_tensor * k_b;
+    struct ggml_tensor * q_w;
+    struct ggml_tensor * q_b;
+    struct ggml_tensor * v_w;
+    struct ggml_tensor * v_b;
+
+    struct ggml_tensor * o_w;
+    struct ggml_tensor * o_b;
+
+    // layernorm 1
+    struct ggml_tensor * ln_1_w;
+    struct ggml_tensor * ln_1_b;
+
+    // ff
+    struct ggml_tensor * ff_i_w;
+    struct ggml_tensor * ff_i_b;
+
+    struct ggml_tensor * ff_o_w;
+    struct ggml_tensor * ff_o_b;
+
+    // layernorm 2
+    struct ggml_tensor * ln_2_w;
+    struct ggml_tensor * ln_2_b;
+};
+
+struct clip_text_model {
+    struct clip_text_hparams hparams;
+
+    // embeddings
+    struct ggml_tensor * token_embeddings;
+    struct ggml_tensor * position_embeddings;
+
+    std::vector<clip_layer> layers;
+
+    struct ggml_tensor * post_ln_w;
+    struct ggml_tensor * post_ln_b;
+
+    struct ggml_tensor * projection;
+
+    std::map<std::string, struct ggml_tensor *> tensors;
+};
+
+struct clip_vision_model {
+    struct clip_vision_hparams hparams;
+
+    // embeddings
+    struct ggml_tensor * class_embedding;
+    struct ggml_tensor * patch_embeddings;
+    struct ggml_tensor * position_embeddings;
+
+    struct ggml_tensor * pre_ln_w;
+    struct ggml_tensor * pre_ln_b;
+
+    std::vector<clip_layer> layers;
+
+    struct ggml_tensor * post_ln_w;
+    struct ggml_tensor * post_ln_b;
+
+    struct ggml_tensor * projection;
+
+    std::map<std::string, struct ggml_tensor *> tensors;
+};
+
+// Replacement for std::vector<uint8_t> that doesn't require zero-initialization.
+struct clip_buffer {
+    uint8_t * data = NULL;
+    size_t size = 0;
+
+    void resize(size_t size) {
+        delete[] data;
+        data = new uint8_t[size];
+        this->size = size;
+    }
+
+    ~clip_buffer() { delete[] data; }
+};
+
+struct clip_ctx {
+    struct clip_text_model text_model;
+    struct clip_vision_model vision_model;
+    struct clip_vocab vocab;
+    int32_t use_gelu = 0;
+    int32_t ftype = 1;
+    struct ggml_context * ctx;
+    struct clip_buffer buf_compute;
+};
 
 // utility function for a workaround until https://github.com/ggerganov/ggml/issues/260 is resolved
 // after that, remove this and use the mechanism implemented in GGML directly
@@ -65,7 +177,7 @@ size_t get_scr_buf_req_by_size(const size_t n_tensors, const int n_positions) {
     }
 }
 
-std::vector<clip_vocab::id> clip_tokenize(const clip_ctx * ctx, const std::string & text) {
+struct clip_tokens clip_tokenize(const clip_ctx * ctx, const char * text) {
     std::vector<std::string> words;
 
     // first split the text into words
@@ -135,12 +247,6 @@ std::vector<clip_vocab::id> clip_tokenize(const clip_ctx * ctx, const std::strin
 
     tokens.push_back(49407); // endoftext
 
-    return tokens;
-}
-
-struct clip_tokens clip_tokenize_c(const clip_ctx * ctx, const char * text) {
-    std::vector<int> tokens = clip_tokenize(ctx, text);
-
     clip_tokens c_tokens{};
     c_tokens.size = tokens.size();
 
@@ -154,23 +260,19 @@ clip_image_u8 * make_clip_image_u8() { return new clip_image_u8(); }
 
 clip_image_f32 * make_clip_image_f32() { return new clip_image_f32(); }
 
-bool clip_image_load_from_file_c(const char * fname, clip_image_u8 * img) {
-    std::string _fname(fname);
-    return clip_image_load_from_file(_fname, *img);
-}
-
-bool clip_image_load_from_file(const std::string & fname, clip_image_u8 & img) {
+bool clip_image_load_from_file(const char * fname, clip_image_u8 * img) {
     int nx, ny, nc;
-    auto data = stbi_load(fname.c_str(), &nx, &ny, &nc, 3);
+    auto data = stbi_load(fname, &nx, &ny, &nc, 3);
     if (!data) {
-        fprintf(stderr, "%s: failed to load '%s'\n", __func__, fname.c_str());
+        fprintf(stderr, "%s: failed to load '%s'\n", __func__, fname);
         return false;
     }
 
-    img.nx = nx;
-    img.ny = ny;
-    img.data.resize(nx * ny * 3);
-    memcpy(img.data.data(), data, nx * ny * 3);
+    img->nx = nx;
+    img->ny = ny;
+    img->size = nx * ny * 3;
+    img->data = new uint8_t[img->size]();
+    memcpy(img->data, data, img->size);
 
     stbi_image_free(data);
 
@@ -188,7 +290,8 @@ bool clip_image_preprocess(const clip_ctx * ctx, const clip_image_u8 * img, clip
 
     res->nx = nx2;
     res->ny = ny2;
-    res->data.resize(3 * nx2 * ny2);
+    res->size = 3 * nx2 * ny2;
+    res->data = new float[res->size]();
 
     const float scale = std::max(nx, ny) / (float)ctx->vision_model.hparams.image_size;
 
@@ -240,6 +343,7 @@ bool clip_image_preprocess(const clip_ctx * ctx, const clip_image_u8 * img, clip
 
     return true;
 }
+
 // Structure to hold the image data as an input to function to be executed for thread
 typedef struct {
     const clip_image_u8 * input;
@@ -261,34 +365,35 @@ void * preprocess_image(void * arg) {
 }
 
 // Function to batch-preprocess multiple images i
-void clip_image_batch_preprocess(const clip_ctx * ctx, const int n_threads, const std::vector<clip_image_u8> & img_inputs,
-                                 std::vector<clip_image_f32> & imgs_resized) {
-    GGML_ASSERT(img_inputs.size() == imgs_resized.size());
-    int num_threads = std::min(n_threads, static_cast<int>(img_inputs.size()));
+void clip_image_batch_preprocess(const clip_ctx * ctx, const int n_threads, const clip_image_u8_batch * img_inputs,
+                                 clip_image_f32_batch * imgs_resized) {
+    imgs_resized->size = img_inputs->size;
+
+    int num_threads = std::min(n_threads, static_cast<int>(img_inputs->size));
     int i, t;
 
     // Divide the images among the threads
-    int images_per_thread = img_inputs.size() / num_threads;
+    int images_per_thread = img_inputs->size / num_threads;
 
     if (num_threads == 1) {
         // Single-threaded case
-        for (i = 0; i < img_inputs.size(); i++) {
-            clip_image_preprocess(ctx, &img_inputs[i], &imgs_resized[i]);
+        for (i = 0; i < img_inputs->size; i++) {
+            clip_image_preprocess(ctx, &img_inputs->data[i], &imgs_resized->data[i]);
         }
     } else {
         // Multi-threaded case
 
         std::vector<pthread_t> threads(num_threads);
-        std::vector<ImageData> imageData(img_inputs.size());
+        std::vector<ImageData> imageData(img_inputs->size);
 
         for (t = 0; t < num_threads; t++) {
             int start_index = t * images_per_thread;
-            int end_index = (t == num_threads - 1) ? img_inputs.size() : start_index + images_per_thread;
+            int end_index = (t == num_threads - 1) ? img_inputs->size : start_index + images_per_thread;
 
             // Create ImageData for each thread
             for (i = start_index; i < end_index; i++) {
-                imageData[i].input = &img_inputs[i];
-                imageData[i].resized = &imgs_resized[i];
+                imageData[i].input = &img_inputs->data[i];
+                imageData[i].resized = &imgs_resized->data[i];
                 imageData[i].ctx = ctx;
             }
 
@@ -830,15 +935,11 @@ void clip_free(clip_ctx * ctx) {
     delete ctx;
 }
 
-bool clip_text_encode_c(const clip_ctx * ctx, int n_threads, const clip_tokens * tokens, float * vec) {
-    std::vector<int> _tokens(tokens->data, tokens->data + tokens->size);
-    return clip_text_encode(ctx, n_threads, _tokens, vec);
-}
-
-bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<clip_vocab::id> & tokens, float * vec) {
+bool clip_text_encode(const clip_ctx * ctx, const int n_threads, const clip_tokens * tokens, float * vec,
+                      const bool normalize) {
     const auto & model = ctx->text_model;
     const auto & hparams = model.hparams;
-    const int N = tokens.size();
+    const size_t N = tokens->size;
 
     const int n_vocab = hparams.n_vocab;
     const int num_positions = hparams.num_positions;
@@ -864,7 +965,7 @@ bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<cli
     static void * scr0 = malloc(scr0_size);
 
     struct ggml_tensor * input_ids = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, N);
-    memcpy(input_ids->data, tokens.data(), N * ggml_element_size(input_ids));
+    memcpy(input_ids->data, tokens->data, N * ggml_element_size(input_ids));
 
     struct ggml_tensor * positions = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, N);
     for (int i = 0; i < N; i++) {
@@ -975,8 +1076,10 @@ bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<cli
     embeddings = ggml_mul_mat(ctx0, model.projection, embeddings);
 
     // normalize output embeddings
-    ggml_tensor * length = ggml_sqrt(ctx0, ggml_sum(ctx0, ggml_sqr(ctx0, embeddings)));
-    embeddings = ggml_scale_inplace(ctx0, embeddings, ggml_div(ctx0, ggml_new_f32(ctx0, 1.0f), length));
+    if (normalize) {
+        ggml_tensor * length = ggml_sqrt(ctx0, ggml_sum(ctx0, ggml_sqr(ctx0, embeddings)));
+        embeddings = ggml_scale_inplace(ctx0, embeddings, ggml_div(ctx0, ggml_new_f32(ctx0, 1.0f), length));
+    }
 
     ggml_set_name(embeddings, "check");
 
@@ -1045,17 +1148,15 @@ bool clip_text_encode(const clip_ctx * ctx, int n_threads, const std::vector<cli
     return true;
 }
 
-bool clip_image_encode_c(const clip_ctx * ctx, int n_threads, const clip_image_f32 * img, float * vec) {
-    return clip_image_encode(ctx, n_threads, *img, vec);
+bool clip_image_encode(const clip_ctx * ctx, const int n_threads, clip_image_f32 * img, float * vec, const bool normalize) {
+    clip_image_f32_batch imgs{};
+    imgs.size = 1;
+    imgs.data = img;
+    return clip_image_batch_encode(ctx, n_threads, &imgs, vec, normalize);
 }
 
-bool clip_image_encode(const clip_ctx * ctx, int n_threads, const clip_image_f32 & img, float * vec) {
-    std::vector<clip_image_f32> imgs;
-    imgs.push_back(img);
-    return clip_image_batch_encode(ctx, n_threads, imgs, vec);
-}
-
-bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vector<clip_image_f32> & imgs, float * vec) {
+bool clip_image_batch_encode(const clip_ctx * ctx, const int n_threads, const clip_image_f32_batch * imgs, float * vec,
+                             const bool normalize) {
     const auto & model = ctx->vision_model;
     const auto & hparams = model.hparams;
 
@@ -1069,7 +1170,7 @@ bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vec
     const int n_layer = hparams.n_layer;
     const int n_intermediate = hparams.n_intermediate;
     const int projection_dim = hparams.projection_dim;
-    int batch_size = imgs.size();
+    int batch_size = imgs->size;
 
     auto & buf_compute = ctx->buf_compute;
 
@@ -1091,9 +1192,9 @@ bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vec
     {
         float * data = (float *)ggml_get_data(inp_raw);
 
-        for (int b = 0; b < imgs.size(); b++) {
-            const int nx = imgs[b].nx;
-            const int ny = imgs[b].ny;
+        for (int b = 0; b < imgs->size; b++) {
+            const int nx = imgs->data[b].nx;
+            const int ny = imgs->data[b].ny;
             GGML_ASSERT(nx == image_size && ny == image_size);
 
             const int n = nx * ny;
@@ -1102,7 +1203,7 @@ bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vec
                 for (int k = 0; k < 3; k++) {
                     for (int y = 0; y < ny; y++) {
                         for (int x = 0; x < nx; x++) {
-                            data[(b * 3 * n) + k * n + y * nx + x] = imgs[b].data[3 * (y * nx + x) + k];
+                            data[(b * 3 * n) + k * n + y * nx + x] = imgs->data[b].data[3 * (y * nx + x) + k];
                         }
                     }
                 }
@@ -1251,8 +1352,10 @@ bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vec
 
     for (int b = 0; b < batch_size; b++) {
         struct ggml_tensor * embedding = ggml_get_rows(ctx0, embeddings, ggml_new_i32(ctx0, b));
-        ggml_tensor * length = ggml_sqrt(ctx0, ggml_sum(ctx0, ggml_sqr(ctx0, embedding)));
-        embedding = ggml_scale_inplace(ctx0, embedding, ggml_div(ctx0, ggml_new_f32(ctx0, 1.0f), length));
+        if (normalize) {
+            ggml_tensor * length = ggml_sqrt(ctx0, ggml_sum(ctx0, ggml_sqr(ctx0, embedding)));
+            embedding = ggml_scale_inplace(ctx0, embedding, ggml_div(ctx0, ggml_new_f32(ctx0, 1.0f), length));
+        }
         output = ggml_acc(ctx0, output, embedding, output->nb[1], output->nb[2], output->nb[3], b * ggml_nbytes(embedding));
     }
     ggml_set_name(output, "check");
@@ -1324,24 +1427,17 @@ bool clip_image_batch_encode(const clip_ctx * ctx, int n_threads, const std::vec
     return true;
 }
 
-float clip_similarity_score(float * vec1, float * vec2, int vec_dim) {
+float clip_similarity_score(const float * vec1, const float * vec2, const int vec_dim) {
     float dot_product = 0.0;
     for (int i = 0; i < vec_dim; i++) {
         dot_product += vec1[i] * vec2[i];
     }
 
-    // Clamp the dot product to the range [0, 1].
-    float clamped_dot_product = fmin(fmax(dot_product, 0.0), 1.0);
-
-    return clamped_dot_product;
+    return dot_product;
 }
 
-bool clip_compare_text_and_image_c(clip_ctx * ctx, int n_threads, char * text, clip_image_u8 * image, float * score) {
-    std::string _text(text);
-    return clip_compare_text_and_image(ctx, n_threads, _text, *image, score);
-}
-
-bool clip_compare_text_and_image(clip_ctx * ctx, int n_threads, std::string & text, clip_image_u8 & image, float * score) {
+bool clip_compare_text_and_image(const clip_ctx * ctx, const int n_threads, const char * text, const clip_image_u8 * image,
+                                 float * score) {
     // prepare image and text vectors
     const int projection_dim = ctx->vision_model.hparams.projection_dim;
     float img_vec[projection_dim];
@@ -1350,18 +1446,18 @@ bool clip_compare_text_and_image(clip_ctx * ctx, int n_threads, std::string & te
     // preprocess and encode image
     clip_image_f32 img_res;
 
-    if (!clip_image_preprocess(ctx, &image, &img_res)) {
+    if (!clip_image_preprocess(ctx, image, &img_res)) {
         return false;
     }
 
-    if (!clip_image_encode(ctx, n_threads, img_res, img_vec)) {
+    if (!clip_image_encode(ctx, n_threads, &img_res, img_vec, true)) {
         return false;
     }
 
     // tokenize and encode text
     auto tokens = clip_tokenize(ctx, text);
 
-    if (!clip_text_encode(ctx, n_threads, tokens, txt_vec)) {
+    if (!clip_text_encode(ctx, n_threads, &tokens, txt_vec, true)) {
         return false;
     }
 
@@ -1389,25 +1485,17 @@ int compare_scores(const void * a, const void * b) {
     }
 }
 
-bool softmax_with_sorting(float * arr, int length, float * sorted_scores, int * indices) {
+bool softmax_with_sorting(float * arr, const int length, float * sorted_scores, int * indices) {
     ScoreIndexPair * score_index_pairs = (ScoreIndexPair *)malloc(length * sizeof(ScoreIndexPair));
     if (!score_index_pairs) {
         return false;
     }
 
     // Calculate softmax probabilities
-    /*
-    float max_val = arr[0];
-    for (int i = 1; i < length; i++) {
-        if (arr[i] > max_val) {
-            max_val = arr[i];
-        }
-    }
-*/
 
-    float sum = 0.0;
+    double sum = 0.0;
     for (int i = 0; i < length; i++) {
-        arr[i] = exp(arr[i]);
+        arr[i] = exp(arr[i]) + 1e-9;
         sum += arr[i];
     }
 
@@ -1430,7 +1518,7 @@ bool softmax_with_sorting(float * arr, int length, float * sorted_scores, int * 
     return true;
 }
 
-bool image_normalize(clip_image_u8 * img, clip_image_f32 * res) {
+bool image_normalize(const clip_image_u8 * img, clip_image_f32 * res) {
     if (img->nx != 224 || img->ny != 224) {
         printf("%s: long input shape: %d x %d\n", __func__, img->nx, img->ny);
         return false;

@@ -4,12 +4,15 @@ from typing import List, Dict, Any
 
 # Note: Pass -DBUILD_SHARED_LIBS=ON to cmake to create the shared library file
 
-# Load the shared library
-path_to_dll = os.environ.get(
-    "CLIP_DLL", os.path.join(os.path.abspath(os.path.dirname(__file__)), "libclip.so")
-)
+cur_dir = os.getcwd()
+this_dir = os.path.abspath(os.path.dirname(__file__))
 
-clip_lib = ctypes.CDLL(path_to_dll)
+# Load the shared library
+path_to_dll = os.environ.get("CLIP_DLL", this_dir)
+os.chdir(path_to_dll)
+ggml_lib = ctypes.CDLL("./libggml.so")
+clip_lib = ctypes.CDLL("./libclip.so")
+os.chdir(cur_dir)
 
 
 # Define the ctypes structures
@@ -57,63 +60,6 @@ class ClipTokens(ctypes.Structure):
     ]
 
 
-class ClipLayer(ctypes.Structure):
-    _fields_ = [
-        ("k_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("k_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("q_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("q_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("v_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("v_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("o_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("o_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("ln_1_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("ln_1_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("ff_i_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("ff_i_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("ff_o_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("ff_o_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("ln_2_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("ln_2_b", ctypes.POINTER(ctypes.c_void_p)),
-    ]
-
-
-class ClipTextModel(ctypes.Structure):
-    _fields_ = [
-        ("hparams", ClipTextHparams),
-        ("token_embeddings", ctypes.POINTER(ctypes.c_void_p)),
-        ("position_embeddings", ctypes.POINTER(ctypes.c_void_p)),
-        ("layers", ctypes.POINTER(ClipLayer)),
-        ("post_ln_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("post_ln_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("projection", ctypes.POINTER(ctypes.c_void_p)),
-        ("tensors", ctypes.POINTER(ctypes.c_void_p)),
-    ]
-
-
-class ClipVisionModel(ctypes.Structure):
-    _fields_ = [
-        ("hparams", ClipVisionHparams),
-        ("class_embedding", ctypes.POINTER(ctypes.c_void_p)),
-        ("patch_embeddings", ctypes.POINTER(ctypes.c_void_p)),
-        ("position_embeddings", ctypes.POINTER(ctypes.c_void_p)),
-        ("pre_ln_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("pre_ln_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("layers", ctypes.POINTER(ClipLayer)),
-        ("post_ln_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("post_ln_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("projection", ctypes.POINTER(ctypes.c_void_p)),
-        ("tensors", ctypes.POINTER(ctypes.c_void_p)),
-    ]
-
-
-class ClipBuffer(ctypes.Structure):
-    _fields_ = [
-        ("data", ctypes.POINTER(ctypes.c_uint8)),
-        ("size", ctypes.c_size_t),
-    ]
-
-
 class ClipImageU8(ctypes.Structure):
     _fields_ = [
         ("nx", ctypes.c_int),
@@ -131,14 +77,7 @@ class ClipImageF32(ctypes.Structure):
 
 
 class ClipContext(ctypes.Structure):
-    _fields_ = [
-        ("text_model", ClipTextModel),
-        ("vision_model", ClipVisionModel),
-        ("vocab", ClipVocab),
-        ("use_gelu", ctypes.c_int32),
-        ("ftype", ctypes.c_int32),
-        ("buf_compute", ClipBuffer),
-    ]
+    pass
 
 
 # Load the functions from the shared library
@@ -157,11 +96,11 @@ clip_get_vision_hparams = clip_lib.clip_get_vision_hparams
 clip_get_vision_hparams.argtypes = [ctypes.POINTER(ClipContext)]
 clip_get_vision_hparams.restype = ctypes.POINTER(ClipVisionHparams)
 
-clip_tokenize = clip_lib.clip_tokenize_c
+clip_tokenize = clip_lib.clip_tokenize
 clip_tokenize.argtypes = [ctypes.POINTER(ClipContext), ctypes.c_char_p]
 clip_tokenize.restype = ClipTokens
 
-clip_image_load_from_file = clip_lib.clip_image_load_from_file_c
+clip_image_load_from_file = clip_lib.clip_image_load_from_file
 clip_image_load_from_file.argtypes = [ctypes.c_char_p, ctypes.POINTER(ClipImageU8)]
 clip_image_load_from_file.restype = ctypes.c_bool
 
@@ -173,25 +112,27 @@ clip_image_preprocess.argtypes = [
 ]
 clip_image_preprocess.restype = ctypes.c_bool
 
-clip_text_encode = clip_lib.clip_text_encode_c
+clip_text_encode = clip_lib.clip_text_encode
 clip_text_encode.argtypes = [
     ctypes.POINTER(ClipContext),
     ctypes.c_int,
     ctypes.POINTER(ClipTokens),
     ctypes.POINTER(ctypes.c_float),
+    ctypes.c_bool,
 ]
 clip_text_encode.restype = ctypes.c_bool
 
-clip_image_encode = clip_lib.clip_image_encode_c
+clip_image_encode = clip_lib.clip_image_encode
 clip_image_encode.argtypes = [
     ctypes.POINTER(ClipContext),
     ctypes.c_int,
     ctypes.POINTER(ClipImageF32),
     ctypes.POINTER(ctypes.c_float),
+    ctypes.c_bool,
 ]
 clip_image_encode.restype = ctypes.c_bool
 
-clip_compare_text_and_image = clip_lib.clip_compare_text_and_image_c
+clip_compare_text_and_image = clip_lib.clip_compare_text_and_image
 clip_compare_text_and_image.argtypes = [
     ctypes.POINTER(ClipContext),
     ctypes.c_int,
@@ -258,7 +199,10 @@ class Clip:
         return [tokens.data[i] for i in range(tokens.size)]
 
     def encode_text(
-        self, tokens: List[int], n_threads: int = os.cpu_count()
+        self,
+        tokens: List[int],
+        n_threads: int = os.cpu_count(),
+        normalize: bool = True,
     ) -> List[float]:
         tokens_array = (ClipVocabId * len(tokens))(*tokens)
         clip_tokens = ClipTokens(data=tokens_array, size=len(tokens))
@@ -266,14 +210,14 @@ class Clip:
         txt_vec = (ctypes.c_float * self.vec_dim)()
 
         if not clip_text_encode(
-            self.ctx, n_threads, ctypes.pointer(clip_tokens), txt_vec
+            self.ctx, n_threads, ctypes.pointer(clip_tokens), txt_vec, normalize
         ):
             raise RuntimeError("Could not encode text")
 
         return [txt_vec[i] for i in range(self.vec_dim)]
 
     def load_preprocess_encode_image(
-        self, image_path: str, n_threads: int = os.cpu_count()
+        self, image_path: str, n_threads: int = os.cpu_count(), normalize: bool = True
     ) -> List[float]:
         image_ptr = make_clip_image_u8()
         if not clip_image_load_from_file(image_path.encode("utf8"), image_ptr):
@@ -284,7 +228,9 @@ class Clip:
             raise RuntimeError("Could not preprocess image")
 
         img_vec = (ctypes.c_float * self.vec_dim)()
-        if not clip_image_encode(self.ctx, n_threads, processed_image_ptr, img_vec):
+        if not clip_image_encode(
+            self.ctx, n_threads, processed_image_ptr, img_vec, normalize
+        ):
             raise RuntimeError("Could not encode image")
 
         return [img_vec[i] for i in range(self.vec_dim)]
