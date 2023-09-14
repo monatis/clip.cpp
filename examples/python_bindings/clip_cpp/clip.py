@@ -60,63 +60,6 @@ class ClipTokens(ctypes.Structure):
     ]
 
 
-class ClipLayer(ctypes.Structure):
-    _fields_ = [
-        ("k_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("k_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("q_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("q_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("v_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("v_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("o_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("o_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("ln_1_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("ln_1_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("ff_i_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("ff_i_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("ff_o_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("ff_o_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("ln_2_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("ln_2_b", ctypes.POINTER(ctypes.c_void_p)),
-    ]
-
-
-class ClipTextModel(ctypes.Structure):
-    _fields_ = [
-        ("hparams", ClipTextHparams),
-        ("token_embeddings", ctypes.POINTER(ctypes.c_void_p)),
-        ("position_embeddings", ctypes.POINTER(ctypes.c_void_p)),
-        ("layers", ctypes.POINTER(ClipLayer)),
-        ("post_ln_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("post_ln_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("projection", ctypes.POINTER(ctypes.c_void_p)),
-        ("tensors", ctypes.POINTER(ctypes.c_void_p)),
-    ]
-
-
-class ClipVisionModel(ctypes.Structure):
-    _fields_ = [
-        ("hparams", ClipVisionHparams),
-        ("class_embedding", ctypes.POINTER(ctypes.c_void_p)),
-        ("patch_embeddings", ctypes.POINTER(ctypes.c_void_p)),
-        ("position_embeddings", ctypes.POINTER(ctypes.c_void_p)),
-        ("pre_ln_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("pre_ln_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("layers", ctypes.POINTER(ClipLayer)),
-        ("post_ln_w", ctypes.POINTER(ctypes.c_void_p)),
-        ("post_ln_b", ctypes.POINTER(ctypes.c_void_p)),
-        ("projection", ctypes.POINTER(ctypes.c_void_p)),
-        ("tensors", ctypes.POINTER(ctypes.c_void_p)),
-    ]
-
-
-class ClipBuffer(ctypes.Structure):
-    _fields_ = [
-        ("data", ctypes.POINTER(ctypes.c_uint8)),
-        ("size", ctypes.c_size_t),
-    ]
-
-
 class ClipImageU8(ctypes.Structure):
     _fields_ = [
         ("nx", ctypes.c_int),
@@ -134,14 +77,7 @@ class ClipImageF32(ctypes.Structure):
 
 
 class ClipContext(ctypes.Structure):
-    _fields_ = [
-        ("text_model", ClipTextModel),
-        ("vision_model", ClipVisionModel),
-        ("vocab", ClipVocab),
-        ("use_gelu", ctypes.c_int32),
-        ("ftype", ctypes.c_int32),
-        ("buf_compute", ClipBuffer),
-    ]
+    pass
 
 
 # Load the functions from the shared library
