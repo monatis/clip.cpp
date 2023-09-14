@@ -35,7 +35,7 @@ int main(int argc, char ** argv) {
 
     size_t n_labels = result.size();
     if (n_labels < 2) {
-        printf("%s There must be at least 2 directories of images, but %d found\n", __func__, n_labels);
+        printf("%s There must be at least 2 directories of images, but %zu found\n", __func__, n_labels);
         return 1;
     }
 
@@ -109,13 +109,8 @@ int main(int argc, char ** argv) {
                 }
             }
 
-            auto img_inputs_batch = clip_image_u8_batch{};
-            img_inputs_batch.data = img_inputs.data();
-            img_inputs_batch.size = img_inputs.size();
-
-            auto imgs_resized_batch = clip_image_f32_batch{};
-            imgs_resized_batch.data = imgs_resized.data();
-            imgs_resized_batch.size = imgs_resized.size();
+            auto img_inputs_batch = make_clip_image_u8_batch(img_inputs);
+            auto imgs_resized_batch = make_clip_image_f32_batch(imgs_resized);
 
             clip_image_batch_preprocess(ctx, n_threads, &img_inputs_batch, &imgs_resized_batch);
 
@@ -161,7 +156,7 @@ int main(int argc, char ** argv) {
     float total_text_duration = (t_end_encode_texts - t_start_encode_texts) / 1000.0f;
     float total_image_duration = (t_end_encode_images - t_start_encode_images) / 1000.0f;
     fprintf(fout, "# Timings\n");
-    fprintf(fout, "- %d texts encoded in %8.2f ms (%8.2f ms per text)\n", n_labels, total_text_duration,
+    fprintf(fout, "- %zu texts encoded in %8.2f ms (%8.2f ms per text)\n", n_labels, total_text_duration,
             total_text_duration / (float)n_labels);
     fprintf(fout, "- %d images encoded in %8.2f ms (%8.2f ms per image)\n", n_total_items, total_image_duration,
             total_image_duration / (float)n_total_items);

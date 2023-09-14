@@ -79,7 +79,7 @@ int main(int argc, char ** argv) {
     std::vector<std::string> image_file_index;
     unum::usearch::index_gt<unum::usearch::cos_gt<float>> embd_index;
 
-    const int vec_dim = clip_get_vision_hparams(clip_ctx)->projection_dim;
+    const size_t vec_dim = clip_get_vision_hparams(clip_ctx)->projection_dim;
     const size_t batch_size = 4;
 
     size_t label = 0;
@@ -169,13 +169,8 @@ int main(int argc, char ** argv) {
                     fflush(stdout);
                 }
 
-                auto img_inputs_batch = clip_image_u8_batch{};
-                img_inputs_batch.data = img_inputs.data();
-                img_inputs_batch.size = img_inputs.size();
-
-                auto imgs_resized_batch = clip_image_f32_batch{};
-                imgs_resized_batch.data = imgs_resized.data();
-                imgs_resized_batch.size = imgs_resized.size();
+                auto img_inputs_batch = make_clip_image_u8_batch(img_inputs);
+                auto imgs_resized_batch = make_clip_image_f32_batch(imgs_resized);
 
                 clip_image_batch_preprocess(clip_ctx, params.n_threads, &img_inputs_batch, &imgs_resized_batch);
                 clip_image_batch_encode(clip_ctx, params.n_threads, &imgs_resized_batch, vec.data(), true);
