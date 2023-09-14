@@ -79,7 +79,7 @@ int main(int argc, char ** argv) {
     std::vector<std::string> image_file_index;
     unum::usearch::index_gt<unum::usearch::cos_gt<float>> embd_index;
 
-    const size_t vec_dim = clip_ctx->vision_model.hparams.projection_dim;
+    const int vec_dim = clip_get_vision_hparams(clip_ctx)->projection_dim;
     const size_t batch_size = 4;
 
     size_t label = 0;
@@ -111,7 +111,7 @@ int main(int argc, char ** argv) {
                         printf("%s: found image file '%s'\n", __func__, img_path.c_str());
                     }
 
-                    if (!clip_image_load_from_file(img_path, img_inputs[ib % batch_size])) {
+                    if (!clip_image_load_from_file(img_path.c_str(), &img_inputs[ib % batch_size])) {
                         fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, img_path.c_str());
                         continue;
                     }
@@ -124,9 +124,17 @@ int main(int argc, char ** argv) {
                     fflush(stdout);
                 }
 
-                clip_image_batch_preprocess(clip_ctx, params.n_threads, img_inputs, imgs_resized);
+                auto img_inputs_batch = clip_image_u8_batch{};
+                img_inputs_batch.data = img_inputs.data();
+                img_inputs_batch.size = img_inputs.size();
 
-                clip_image_batch_encode(clip_ctx, params.n_threads, imgs_resized, vec.data(), true);
+                auto imgs_resized_batch = clip_image_f32_batch{};
+                imgs_resized_batch.data = imgs_resized.data();
+                imgs_resized_batch.size = imgs_resized.size();
+
+                clip_image_batch_preprocess(clip_ctx, params.n_threads, &img_inputs_batch, &imgs_resized_batch);
+
+                clip_image_batch_encode(clip_ctx, params.n_threads, &imgs_resized_batch, vec.data(), true);
 
                 // add image vectors to the database
                 for (size_t b = 0; b < batch_size; b++) {
@@ -148,7 +156,7 @@ int main(int argc, char ** argv) {
                         printf("%s: found image file '%s'\n", __func__, img_path.c_str());
                     }
 
-                    if (!clip_image_load_from_file(img_path, img_inputs[il - n_batched])) {
+                    if (!clip_image_load_from_file(img_path.c_str(), &img_inputs[il - n_batched])) {
                         fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, img_path.c_str());
                         continue;
                     }
@@ -161,8 +169,16 @@ int main(int argc, char ** argv) {
                     fflush(stdout);
                 }
 
-                clip_image_batch_preprocess(clip_ctx, params.n_threads, img_inputs, imgs_resized);
-                clip_image_batch_encode(clip_ctx, params.n_threads, imgs_resized, vec.data(), true);
+                auto img_inputs_batch = clip_image_u8_batch{};
+                img_inputs_batch.data = img_inputs.data();
+                img_inputs_batch.size = img_inputs.size();
+
+                auto imgs_resized_batch = clip_image_f32_batch{};
+                imgs_resized_batch.data = imgs_resized.data();
+                imgs_resized_batch.size = imgs_resized.size();
+
+                clip_image_batch_preprocess(clip_ctx, params.n_threads, &img_inputs_batch, &imgs_resized_batch);
+                clip_image_batch_encode(clip_ctx, params.n_threads, &imgs_resized_batch, vec.data(), true);
 
                 // add image vectors to the database
                 for (size_t l = 0; l < leftover; l++) {
