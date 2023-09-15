@@ -13,4 +13,4 @@ cmake -DBUILD_SHARED_LIBS=ON -DCLIP_NATIVE=OFF ..
 
 make
 
-cp ./*.so ../examples/python_bindings/clip_cpp/
+make install

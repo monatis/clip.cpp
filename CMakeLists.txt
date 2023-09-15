@@ -266,6 +266,9 @@ if (BUILD_SHARED_LIBS)
     set_target_properties(ggml PROPERTIES POSITION_INDEPENDENT_CODE ON)
     set_target_properties(clip PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_compile_definitions(clip PRIVATE CLIP_SHARED CLIP_BUILD)
+    set(CMAKE_INSTALL_PREFIX ${PROJECT_BINARY_DIR})
+    install(TARGETS ggml clip
+    LIBRARY DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/examples/python_bindings/clip_cpp)
 endif()
 
 add_subdirectory(models)
