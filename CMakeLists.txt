@@ -248,6 +248,8 @@ if (MSVC)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 endif()
 
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
+
 add_subdirectory(ggml)
 
 add_library(clip
@@ -264,6 +266,9 @@ if (BUILD_SHARED_LIBS)
     set_target_properties(ggml PROPERTIES POSITION_INDEPENDENT_CODE ON)
     set_target_properties(clip PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_compile_definitions(clip PRIVATE CLIP_SHARED CLIP_BUILD)
+    set(CMAKE_INSTALL_PREFIX ${PROJECT_BINARY_DIR})
+    install(TARGETS ggml clip
+    LIBRARY DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/examples/python_bindings/clip_cpp)
 endif()
 
 add_subdirectory(models)
