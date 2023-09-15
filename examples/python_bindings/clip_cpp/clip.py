@@ -1,4 +1,5 @@
 import ctypes
+from ctypes.util import find_library
 import os
 from typing import List, Dict, Any
 
@@ -8,11 +9,13 @@ cur_dir = os.getcwd()
 this_dir = os.path.abspath(os.path.dirname(__file__))
 
 # Load the shared library
-path_to_dll = os.environ.get("CLIP_DLL", this_dir)
-os.chdir(path_to_dll)
-ggml_lib = ctypes.CDLL("./libggml.so")
-clip_lib = ctypes.CDLL("./libclip.so")
-os.chdir(cur_dir)
+ggml_lib_path, clip_lib_path = find_library("ggml"), find_library("clip")
+if ggml_lib_path is None or clip_lib_path is None:
+    raise RuntimeError(f"Could not find shared libraries. Please copy to the current working directory or supply the "
+                       f"correct LD_LIBRARY_PATH/DYLD_LIBRARY_PATH.")
+
+ggml_lib = ctypes.CDLL(ggml_lib_path)
+clip_lib = ctypes.CDLL(clip_lib_path)
 
 
 # Define the ctypes structures
