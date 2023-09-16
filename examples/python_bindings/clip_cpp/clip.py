@@ -5,7 +5,7 @@ from glob import glob
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-from .download_file import ModelInfo, model_download, model_info
+from .file_download import ModelInfo, model_download, model_info
 
 # Note: Pass -DBUILD_SHARED_LIBS=ON to cmake to create the shared library file
 
