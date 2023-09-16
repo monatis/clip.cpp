@@ -5,8 +5,7 @@ from glob import glob
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-from huggingface_hub import model_info, snapshot_download
-from huggingface_hub.utils import validate_repo_id, HFValidationError, RepositoryNotFoundError
+from .download_file import ModelInfo, model_download, model_info
 
 # Note: Pass -DBUILD_SHARED_LIBS=ON to cmake to create the shared library file
 
@@ -16,8 +15,8 @@ this_dir = os.path.abspath(os.path.dirname(__file__))
 # Load the shared library
 ggml_lib_path, clip_lib_path = find_library("ggml"), find_library("clip")
 if ggml_lib_path is None or clip_lib_path is None:
-    raise RuntimeError(f"Could not find shared libraries. Please copy to the current working directory or supply the "
-                       f"correct LD_LIBRARY_PATH/DYLD_LIBRARY_PATH.")
+    raise RuntimeError("Could not find shared libraries. Please copy to the current working directory or supply the "
+                       "correct LD_LIBRARY_PATH/DYLD_LIBRARY_PATH.")
 
 ggml_lib = ctypes.CDLL(ggml_lib_path)
 clip_lib = ctypes.CDLL(clip_lib_path)
@@ -194,7 +193,6 @@ class Clip:
         self,
         model_path_or_repo_id: str,
         model_file: Optional[str] = None,
-        revision: Optional[str] = None,
         verbosity: int = 0):
         """
         Loads the language model from a local file or remote repo.
@@ -209,9 +207,6 @@ class Clip:
               The name of the model file in Hugging Face repo, 
               if not specified the first bin file from the repo is choosen.
 
-            :param revision: str | None
-                The specific model version to use. It can be a branch  
-                name, a tag name, or a commit id.
             :param verbosity: int { 0, 1, 2 } Default = 0
                 How much verbose the model, 2 is more verbose
 
@@ -229,15 +224,11 @@ class Clip:
             )
         
         else:
-            try:
-                validate_repo_id(model_path_or_repo_id)
-                model_path = self._find_model_path_from_repo(
-                    model_path_or_repo_id,
-                    model_file,
-                    revision=revision,
-                )
-            except HFValidationError as not_valid_repo_id:
-                raise not_valid_repo_id
+            model_path = self._find_model_path_from_repo(
+                model_path_or_repo_id,
+                model_file,
+            )
+
             
         self.ctx = clip_model_load(model_path.encode("utf8"), verbosity)
         self.vec_dim = self.text_config["projection_dim"]
@@ -249,42 +240,35 @@ class Clip:
         cls,
         repo_id: str,
         filename: Optional[str] = None,
-        revision: Optional[str] = None,
     ) -> str:
-        if not filename:
-            filename = cls._find_model_file_from_repo(
-                repo_id=repo_id,
-                revision=revision,
-            )
-        allow_patterns = filename or ["*.bin" ] #TODO add "*.gguf"
-        path = snapshot_download(
+        
+        repo_info = model_info(
             repo_id=repo_id,
-            allow_patterns=allow_patterns,
-            revision=revision,
+            files_metadata=True,
+        )
+
+        if not filename:
+            filename = cls._find_model_file_from_repo(repo_info)
+
+        path = model_download(
+            repo_id=repo_id,
+            file_name=filename,
         )
         return cls._find_model_path_from_dir(path, filename=filename)
     
     @classmethod
     def _find_model_file_from_repo(
         cls,
-        repo_id: str,
-        revision: Optional[str] = None,
+        repo_info: ModelInfo
     ) -> Optional[str]:
-        try:
-            repo_info = model_info(
-                repo_id=repo_id,
-                files_metadata=True,
-                revision=revision,
-            )
-            files = [
-                (f.size, f.rfilename)
-                for f in repo_info.siblings
-                #TODO add or f.rfilename.endswith(".gguf")
-                if f.rfilename.endswith(".bin") 
-            ]
-            return min(files)[1]
-        except RepositoryNotFoundError:
-            raise ValueError(f"No repo found with id '{repo_id}'")
+        """return the smallest ggml file"""
+        files = [
+            (f.size, f.rfilename)
+            for f in repo_info.siblings
+            if f.rfilename.endswith(".bin") # or f.rfilename.endswith(".gguf")
+        ]
+        return min(files)[1]
+
 
     @classmethod  
     def _find_model_path_from_dir(
