@@ -1,21 +1,32 @@
 import ctypes
-from ctypes.util import find_library
 import os
+import platform
 from typing import List, Dict, Any
 
 # Note: Pass -DBUILD_SHARED_LIBS=ON to cmake to create the shared library file
 
+
+def find_library(name):
+    os_name = platform.system()
+    if os_name == "Linux":
+        return f"./lib{name}.so"
+    elif os_name == "Windows":
+        return f"{name}.dll"
+    elif os_name == "Mac":
+        return f"lib{name}.dylib"
+
+
 cur_dir = os.getcwd()
 this_dir = os.path.abspath(os.path.dirname(__file__))
+os.chdir(this_dir)
 
 # Load the shared library
 ggml_lib_path, clip_lib_path = find_library("ggml"), find_library("clip")
-if ggml_lib_path is None or clip_lib_path is None:
-    raise RuntimeError(f"Could not find shared libraries. Please copy to the current working directory or supply the "
-                       f"correct LD_LIBRARY_PATH/DYLD_LIBRARY_PATH.")
 
 ggml_lib = ctypes.CDLL(ggml_lib_path)
 clip_lib = ctypes.CDLL(clip_lib_path)
+
+os.chdir(cur_dir)
 
 
 # Define the ctypes structures
