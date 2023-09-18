@@ -1,6 +1,6 @@
 import ctypes
-from ctypes.util import find_library
 import os
+import platform
 from glob import glob
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -9,17 +9,27 @@ from .file_download import ModelInfo, model_download, model_info
 
 # Note: Pass -DBUILD_SHARED_LIBS=ON to cmake to create the shared library file
 
+
+def find_library(name):
+    os_name = platform.system()
+    if os_name == "Linux":
+        return f"./lib{name}.so"
+    elif os_name == "Windows":
+        return f"{name}.dll"
+    elif os_name == "Mac":
+        return f"lib{name}.dylib"
+
+
 cur_dir = os.getcwd()
 this_dir = os.path.abspath(os.path.dirname(__file__))
+os.chdir(this_dir)
 
 # Load the shared library
 ggml_lib_path, clip_lib_path = find_library("ggml"), find_library("clip")
-if ggml_lib_path is None or clip_lib_path is None:
-    raise RuntimeError("Could not find shared libraries. Please copy to the current working directory or supply the "
-                       "correct LD_LIBRARY_PATH/DYLD_LIBRARY_PATH.")
-
 ggml_lib = ctypes.CDLL(ggml_lib_path)
 clip_lib = ctypes.CDLL(clip_lib_path)
+
+os.chdir(cur_dir)
 
 
 # Define the ctypes structures
@@ -108,8 +118,7 @@ clip_tokenize.argtypes = [ctypes.POINTER(ClipContext), ctypes.c_char_p]
 clip_tokenize.restype = ClipTokens
 
 clip_image_load_from_file = clip_lib.clip_image_load_from_file
-clip_image_load_from_file.argtypes = [
-    ctypes.c_char_p, ctypes.POINTER(ClipImageU8)]
+clip_image_load_from_file.argtypes = [ctypes.c_char_p, ctypes.POINTER(ClipImageU8)]
 clip_image_load_from_file.restype = ctypes.c_bool
 
 clip_image_preprocess = clip_lib.clip_image_preprocess
@@ -191,21 +200,22 @@ def _struct_to_dict(struct):
 
 class Clip:
     def __init__(
-            self,
-            model_path_or_repo_id: str,
-            model_file: Optional[str] = None,
-            verbosity: int = 0):
+        self,
+        model_path_or_repo_id: str,
+        model_file: Optional[str] = None,
+        verbosity: int = 0,
+    ):
         """
         Loads the language model from a local file or remote repo.
 
         Args:
         ---
             :param model_path_or_repo_id: str
-                The path to a model file  
+                The path to a model file
                 or the name of a Hugging Face model repo.
 
             :param model_file: str | None
-              The name of the model file in Hugging Face repo, 
+              The name of the model file in Hugging Face repo,
               if not specified the first bin file from the repo is choosen.
 
             :param verbosity: int { 0, 1, 2 } Default = 0
@@ -239,7 +249,6 @@ class Clip:
         repo_id: str,
         filename: Optional[str] = None,
     ) -> str:
-
         repo_info = model_info(
             repo_id=repo_id,
             files_metadata=True,
@@ -255,10 +264,7 @@ class Clip:
         return cls._find_model_path_from_dir(path, filename=filename)
 
     @classmethod
-    def _find_model_file_from_repo(
-        cls,
-        repo_info: ModelInfo
-    ) -> Optional[str]:
+    def _find_model_file_from_repo(cls, repo_info: ModelInfo) -> Optional[str]:
         """return the smallest ggml file"""
         files = [
             (f.size, f.rfilename)
@@ -273,13 +279,11 @@ class Clip:
         path: str,
         filename: Optional[str] = None,
     ) -> str:
-
         path = Path(path).resolve()
         if filename:
             file = path.joinpath(filename).resolve()
             if not file.is_file():
-                raise ValueError(
-                    f"Model file '{filename}' not found in '{path}'")
+                raise ValueError(f"Model file '{filename}' not found in '{path}'")
             return str(file)
         files = glob(path.joinpath("*.bin"))  # TODO add ".gguf"
         file = min(files, key=lambda x: x[0])[1]
@@ -304,17 +308,16 @@ class Clip:
         normalize: bool = True,
     ) -> List[float]:
         """
-        Takes Text Converted Tokens and generate the corresponding embeddings. 
+        Takes Text Converted Tokens and generate the corresponding embeddings.
         """
-        
+
         tokens_array = (ClipVocabId * len(tokens))(*tokens)
         clip_tokens = ClipTokens(data=tokens_array, size=len(tokens))
 
         txt_vec = (ctypes.c_float * self.vec_dim)()
 
         if not clip_text_encode(
-            self.ctx, n_threads, ctypes.pointer(
-                clip_tokens), txt_vec, normalize
+            self.ctx, n_threads, ctypes.pointer(clip_tokens), txt_vec, normalize
         ):
             raise RuntimeError("Could not encode text")
 
@@ -360,8 +363,7 @@ class Clip:
 
         score = ctypes.c_float()
         if not clip_compare_text_and_image(
-            self.ctx, n_threads, text.encode(
-                "utf8"), image_ptr, ctypes.pointer(score)
+            self.ctx, n_threads, text.encode("utf8"), image_ptr, ctypes.pointer(score)
         ):
             raise RuntimeError("Could not compare text and image")
 

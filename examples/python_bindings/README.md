@@ -29,8 +29,9 @@ All you need to do is to compile with the `-DBUILD_SHARED_LIBS=ON` option and co
 from clip_cpp import Clip
 
 ## you can either pass repo_id or .bin file
-## incase you pass repo_id and it has more than .bin file
-## it's recommended to spacify which file to download with `model_file`
+## you can type `clip-cpp-models` in your terminal to see what models are available for download
+## in case you pass repo_id and it has more than .bin file
+## it's recommended to specify which file to download with `model_file`
 repo_id = 'Green-Sky/ggml_laion_clip-vit-b-32-laion2b-s34b-b79k'
 model_file = 'laion_clip-vit-b-32-laion2b-s34b-b79k.ggmlv0.f16.bin'
 
