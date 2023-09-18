@@ -192,7 +192,7 @@ num_images_per_dir: maximum number of images to read from each one of subdirecto
 output_file: optional. if specified, dump the output to this file instead of stdout
 ```
 
-TODO: share benchmarking results for a common dataset later on.
+See [tests/README.md](tests/README.md) for more infor about benchmarking.
 
 ## Future Work
 
