@@ -178,7 +178,7 @@ output_file: optional. if specified, dump the output to this file instead of std
 ```
 
 
-TODO: share benchmarking results for a common dataset later on.
+See [tests/README.md](tests/README.md) for more infor about benchmarking.
 
 ## Future Work
 - [ ] Support `text-only`, `image-only` and `both` (current) options when exporting, and modify model loading logic accordingly. It might be relevant to use a single modality in certain cases, as in large multimodal models, or building and/or searching for semantic image search.

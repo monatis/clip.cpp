@@ -1,5 +1,5 @@
 """
-Small script to get and parse imagnet1k dataset into benchmark format
+Small script to get and parse imagenet1k dataset into benchmark format
 
 Dataset comments
     Change classes names containing "/" to "or"
