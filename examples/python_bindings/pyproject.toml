@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "clip_cpp"
-version = "0.4.0"
+version = "0.4.1"
 description = "CLIP inference with no big dependencies as PyTorch, TensorFlow, Numpy"
 authors = ["Yusuf Sarıgöz <yusufsarigoz@gmail.com>"]
 packages = [{ include = "clip_cpp" }]
@@ -27,4 +27,4 @@ requires = ["poetry-core>=1.7.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-clip_cpp_models = 'clip_cpp.file_download:available_models'
+clip-cpp-models = 'clip_cpp.file_download:available_models'

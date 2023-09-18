@@ -27,7 +27,7 @@ class Model:
         self.modelId = modelId
 
     def __str__(self):
-        return f"model: {self.modelId}"
+        return f"repo_id: {self.modelId}"
 
 
 class BlobLfsInfo(TypedDict, total=False):
@@ -180,6 +180,30 @@ def get_models() -> List[Model]:
 
 
 def available_models():
+    if len(sys.argv) > 1 and sys.argv[-1] != "clip-cpp-models":
+        repo_id = sys.argv[-1]
+        repo = model_info(repo_id=repo_id, files_metadata=True)
+        print(f"Available models in repo {repo_id}:")
+        for model in repo.siblings:
+            if model.rfilename.endswith(".bin"):
+                name = model.rfilename
+                size = model.size / (1024 * 1024)
+                print(f"    model: {name} ({size:.2f} MB)")
+
+        return
+
     models = get_models()
-    print("Available models\n\n:")
-    print("\n    ".join(models))
+    print(
+        "Below are available models on HuggingFace Hub that you can use with the clip-cpp package.\n"
+    )
+    print("Available models:")
+    for model in models:
+        print(model)
+
+    print(
+        "\nYou can pass one of the repo IDs above directly to `Clip()`, and it will download the smallest model in that repo automatically."
+    )
+    print(
+        "Alternatively, you can choose which to load from that repo by passing a value to `model_file` argument."
+    )
+    print("\nTo see model files in a repo, type `clip-cpp-models <repo_id>`")
