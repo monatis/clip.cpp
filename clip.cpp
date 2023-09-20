@@ -1546,9 +1546,9 @@ bool clip_zero_shot_label_image(struct clip_ctx * ctx, const int n_threads, cons
     // apply softmax and sort scores
     softmax_with_sorting(similarities, n_labels, scores, indices);
 
-    clip_free(ctx);
     return true;
 }
+
 bool image_normalize(const clip_image_u8 * img, clip_image_f32 * res) {
     if (img->nx != 224 || img->ny != 224) {
         printf("%s: long input shape: %d x %d\n", __func__, img->nx, img->ny);
