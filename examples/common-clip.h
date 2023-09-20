@@ -15,6 +15,25 @@ std::map<std::string, std::vector<std::string>> get_dir_keyed_files(const std::s
 
 bool is_image_file_extension(const std::string & path);
 
+#include <algorithm>
+#include <string>
+#include <vector>
+
+struct app_params {
+    int32_t n_threads;
+    std::string model;
+    std::vector<std::string> image_paths;
+    std::vector<std::string> texts;
+    int verbose;
+
+    app_params()
+        : n_threads(std::min(4, static_cast<int32_t>(std::thread::hardware_concurrency()))), model("models/ggml-model-f16.bin"),
+          verbose(1) {
+        // Initialize other fields if needed
+    }
+};
+
+/*
 struct app_params {
     int32_t n_threads = std::min(4, (int32_t)std::thread::hardware_concurrency());
 
@@ -23,6 +42,7 @@ struct app_params {
     std::vector<std::string> texts;
     int verbose = 1;
 };
+*/
 
 bool app_params_parse(int argc, char ** argv, app_params & params);
 void print_help(int argc, char ** argv, app_params & params);
