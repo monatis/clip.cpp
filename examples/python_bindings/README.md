@@ -159,7 +159,20 @@ def compare_text_and_image(
 -   `image_path` (str): The path to the image file for comparison.
 -   `n_threads` (int, optional): The number of CPU threads to use for encoding (default is the number of CPU cores).
 
-#### 8. `__del__`
+## 8. `zero_shot_label_image`
+
+```python
+def zero_shot_label_image(
+        self, image_path: str, labels: List[str], n_threads: int = os.cpu_count()
+    ) -> Tuple[List[float], List[int]]:
+```
+
+-   **Description**: Zero-shot labels an image with given candidate labels, returning a tuple of sorted scores and indices.
+-   `image_path` (str): The path to the image file to be labelled.
+-   `labels` (List[str]): A list of candidate labels to be scored.
+-   `n_threads` (int, optional): The number of CPU threads to use for encoding (default is the number of CPU cores).
+
+#### 9. `__del__`
 
 ```python
 def __del__(self):
@@ -175,17 +188,19 @@ A basic example can be found in the [clip.cpp examples](https://github.com/monat
 
 ```
 python example_main.py --help
-usage: clip [-h] -m MODEL [-v VERBOSITY] -t TEXT -i IMAGE
+usage: clip [-h] -m MODEL [-fn FILENAME] [-v VERBOSITY] -t TEXT [TEXT ...] -i IMAGE                                     
+                                                                                                                        
+optional arguments:                                                                                                     
+  -h, --help            show this help message and exit                                                                 
+  -m MODEL, --model MODEL                                                                                               
+                        path to GGML file or repo_id                                                                    
+  -fn FILENAME, --filename FILENAME                                                                                     
+                        path to GGML file in the Hugging face repo                                                      
+  -v VERBOSITY, --verbosity VERBOSITY                                                                                   
+                        Level of verbosity. 0 = minimum, 2 = maximum                                                    
+  -t TEXT [TEXT ...], --text TEXT [TEXT ...]                                                                            
+                        text to encode. Multiple values allowed. In this case, apply zero-shot labeling                 
+  -i IMAGE, --image IMAGE                                                                                               
+                        path to an image file                                                                           
+``````
 
-optional arguments:
-  -h, --help            show this help message and exit
-  -m MODEL, --model MODEL
-                        path to GGML file
-  -v VERBOSITY, --verbosity VERBOSITY
-                        Level of verbosity. 0 = minimum, 2 = maximum
-  -t TEXT, --text TEXT  text to encode
-  -i IMAGE, --image IMAGE
-                        path to an image file
-```
-
-Bindings to the DLL are implemented in `clip_cpp/clip.py` and

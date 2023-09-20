@@ -1518,6 +1518,37 @@ bool softmax_with_sorting(float * arr, const int length, float * sorted_scores, 
     return true;
 }
 
+bool clip_zero_shot_label_image(struct clip_ctx * ctx, const int n_threads, const struct clip_image_u8 * input_img,
+                                const char ** labels, const size_t n_labels, float * scores, int * indices) {
+    // load the image
+    clip_image_f32 img_res;
+
+    const int vec_dim = clip_get_vision_hparams(ctx)->projection_dim;
+
+    clip_image_preprocess(ctx, input_img, &img_res);
+
+    float img_vec[vec_dim];
+    if (!clip_image_encode(ctx, n_threads, &img_res, img_vec, false)) {
+        return false;
+    }
+
+    // encode texts and compute similarities
+    float txt_vec[vec_dim];
+    float similarities[n_labels];
+
+    for (int i = 0; i < n_labels; i++) {
+        const auto & text = labels[i];
+        auto tokens = clip_tokenize(ctx, text);
+        clip_text_encode(ctx, n_threads, &tokens, txt_vec, false);
+        similarities[i] = clip_similarity_score(img_vec, txt_vec, vec_dim);
+    }
+
+    // apply softmax and sort scores
+    softmax_with_sorting(similarities, n_labels, scores, indices);
+
+    return true;
+}
+
 bool image_normalize(const clip_image_u8 * img, clip_image_f32 * res) {
     if (img->nx != 224 || img->ny != 224) {
         printf("%s: long input shape: %d x %d\n", __func__, img->nx, img->ny);
