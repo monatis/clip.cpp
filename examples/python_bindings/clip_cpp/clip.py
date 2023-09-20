@@ -3,7 +3,7 @@ import os
 import platform
 from glob import glob
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 from .file_download import ModelInfo, model_download, model_info
 
@@ -166,6 +166,18 @@ clip_similarity_score.argtypes = [
     ctypes.c_int,
 ]
 clip_similarity_score.restype = ctypes.c_float
+
+clip_zero_shot_label_image = clip_lib.clip_zero_shot_label_image
+clip_zero_shot_label_image.argtypes = [
+    ctypes.POINTER(ClipContext),
+    ctypes.c_int,
+    ctypes.POINTER(ClipImageU8),
+    ctypes.POINTER(ctypes.c_char_p),
+    ctypes.c_ssize_t,
+    ctypes.POINTER(ctypes.c_float),
+    ctypes.POINTER(ctypes.c_int),
+]
+clip_zero_shot_label_image.restype = ctypes.c_bool
 
 softmax_with_sorting = clip_lib.softmax_with_sorting
 softmax_with_sorting.argtypes = [
@@ -368,6 +380,34 @@ class Clip:
             raise RuntimeError("Could not compare text and image")
 
         return score.value
+
+    def zero_shot_label_image(
+        self, image_path: str, labels: List[str], n_threads: int = os.cpu_count()
+    ) -> Tuple[List[float], List[int]]:
+        n_labels = len(labels)
+        if n_labels < 2:
+            raise ValueError(
+                "You must pass at least 2 labels for zero-shot image labeling"
+            )
+
+        labels = (ctypes.c_char_p * n_labels)(
+            *[ctypes.c_char_p(label.encode("utf8")) for label in labels]
+        )
+        image_ptr = make_clip_image_u8()
+        if not clip_image_load_from_file(image_path.encode("utf8"), image_ptr):
+            raise RuntimeError(f"Could not load image {image_path}")
+
+        scores = (ctypes.c_float * n_labels)()
+        indices = (ctypes.c_int * n_labels)()
+        if not clip_zero_shot_label_image(
+            self.ctx, n_threads, image_ptr, labels, n_labels, scores, indices
+        ):
+            print("function called")
+            raise RuntimeError("Could not zero-shot label image")
+
+        return [scores[i] for i in range(n_labels)], [
+            indices[i] for i in range(n_labels)
+        ]
 
     def __del__(self):
         if hasattr(self, "ctx"):
