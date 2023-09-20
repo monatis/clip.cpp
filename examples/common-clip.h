@@ -33,17 +33,6 @@ struct app_params {
     }
 };
 
-/*
-struct app_params {
-    int32_t n_threads = std::min(4, (int32_t)std::thread::hardware_concurrency());
-
-    std::string model = "models/ggml-model-f16.bin";
-    std::vector<std::string> image_paths;
-    std::vector<std::string> texts;
-    int verbose = 1;
-};
-*/
-
 bool app_params_parse(int argc, char ** argv, app_params & params);
 void print_help(int argc, char ** argv, app_params & params);
 
