@@ -98,6 +98,8 @@ bool clip_compare_text_and_image(const struct clip_ctx * ctx, const int n_thread
                                  const struct clip_image_u8 * image, float * score);
 float clip_similarity_score(const float * vec1, const float * vec2, const int vec_dim);
 bool softmax_with_sorting(float * arr, const int length, float * sorted_scores, int * indices);
+bool clip_zero_shot_label_image(struct clip_ctx * ctx, const int n_threads, const struct clip_image_u8 * input_img,
+                                const char ** labels, const size_t n_labels, float * scores, int * indices);
 
 #ifdef __cplusplus
 }
