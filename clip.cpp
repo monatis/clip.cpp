@@ -7,6 +7,7 @@
 #include <map>
 #include <pthread.h>
 #include <regex>
+#include <stdexcept>
 #include <thread>
 #include <vector>
 
@@ -17,6 +18,22 @@
 #include "stb_image.h"
 
 // #define CLIP_DEBUG
+
+int get_key_idx(const gguf_context * ctx, char * key) {
+    int i = gguf_find_key(ctx, key);
+    if (i == -1) {
+        fprintf(stderr, "key %s not found in file\n", key);
+        throw std::runtime_error("Missing required key");
+    }
+
+    return i;
+}
+
+const int get_int(const gguf_context * ctx, char * key) {
+    const int i = get_key_idx(ctx, key);
+
+    return gguf_get_val_i32(ctx, i);
+}
 
 //
 // Vocab utils
@@ -118,6 +135,8 @@ struct clip_buffer {
 };
 
 struct clip_ctx {
+    bool has_text_encoder = false;
+    bool has_vision_encoder = false;
     struct clip_text_model text_model;
     struct clip_vision_model vision_model;
     struct clip_vocab vocab;
@@ -126,6 +145,123 @@ struct clip_ctx {
     struct ggml_context * ctx;
     struct clip_buffer buf_compute;
 };
+
+// read and create ggml_context containing the tensors and their data
+static bool load_gguf(const std::string & fname) {
+
+    clip_ctx * new_clip = new clip_ctx;
+    auto & vision_model = new_clip->vision_model;
+    auto & ctx_data = new_clip->ctx;
+
+    struct gguf_init_params params = {
+        /*.no_alloc = */ false,
+        /*.ctx      = */ &ctx_data,
+    };
+
+    struct gguf_context * ctx = gguf_init_from_file(fname.c_str(), params);
+
+    printf("%s: version:      %d\n", __func__, gguf_get_version(ctx));
+    printf("%s: alignment:   %zu\n", __func__, gguf_get_alignment(ctx));
+    printf("%s: data offset: %zu\n", __func__, gguf_get_data_offset(ctx));
+
+    // kv
+    {
+        const int n_kv = gguf_get_n_kv(ctx);
+
+        printf("%s: n_kv: %d\n", __func__, n_kv);
+
+        for (int i = 0; i < n_kv; ++i) {
+            const char * key = gguf_get_key(ctx, i);
+
+            printf("%s: kv[%d]: key = %s\n", __func__, i, key);
+        }
+    }
+
+    // data
+    {
+        const int n_tensors = gguf_get_n_tensors(ctx);
+
+        for (int i = 0; i < 3; ++i) {
+            const char * name = gguf_get_tensor_name(ctx, i);
+
+            struct ggml_tensor * cur = ggml_get_tensor(ctx_data, name);
+
+            printf("%s: tensor[%d]: n_dims = %d, name = %s, data = %p\n", __func__, i, cur->n_dims, cur->name, cur->data);
+        }
+    }
+
+    // model capabilities
+    {
+        int idx = get_key_idx(ctx, "clip.has_text_encoder");
+        new_clip->has_text_encoder = gguf_get_val_bool(ctx, idx);
+
+        idx = get_key_idx(ctx, "clip.has_vision_encoder");
+        new_clip->has_vision_encoder = gguf_get_val_bool(ctx, idx);
+
+        printf("%s: has_text_encoder: %d\n", __func__, new_clip->has_text_encoder);
+        printf("%s: has_vision_encoder: %d\n", __func__, new_clip->has_vision_encoder);
+    }
+
+    printf("%s: ctx_data size (MB): %f\n", __func__, ggml_get_mem_size(ctx_data) / (1024.0 * 1024.0));
+
+    // text model
+    if (new_clip->has_text_encoder) {
+        // load text model
+        auto & text_model = new_clip->text_model;
+        auto & hparams = text_model.hparams;
+        hparams.hidden_size = get_int(ctx, "clip.text.embedding_length");
+        hparams.n_head = get_int(ctx, "clip.text.attention.head_count");
+        hparams.n_intermediate = get_int(ctx, "clip.text.feed_forward_length");
+        hparams.n_layer = get_int(ctx, "clip.text.block_count");
+        hparams.num_positions = get_int(ctx, "clip.text.context_length");
+        hparams.projection_dim = get_int(ctx, "clip.text.projection_dim");
+
+        const int idx_tokens = get_key_idx(ctx, "tokenizer.ggml.tokens");
+        hparams.n_vocab = gguf_get_arr_n(ctx, idx_tokens);
+
+        if (1 /*verbosity >= 2*/) {
+            printf("\n%s: text model hparams\n", __func__);
+            printf("n_vocab            %d\n", hparams.n_vocab);
+            printf("num_positions      %d\n", hparams.num_positions);
+            printf("t_hidden_size      %d\n", hparams.hidden_size);
+            printf("t_n_intermediate   %d\n", hparams.n_intermediate);
+            printf("t_projection_dim   %d\n", hparams.projection_dim);
+            printf("t_n_head           %d\n", hparams.n_head);
+            printf("t_n_layer          %d\n", hparams.n_layer);
+        }
+    }
+
+    // vision model
+    if (new_clip->has_vision_encoder) {
+        // load vision model
+        auto & vision_model = new_clip->vision_model;
+        auto & hparams = vision_model.hparams;
+        hparams.hidden_size = get_int(ctx, "clip.vision.embedding_length");
+        hparams.n_head = get_int(ctx, "clip.vision.attention.head_count");
+        hparams.n_intermediate = get_int(ctx, "clip.vision.feed_forward_length");
+        hparams.n_layer = get_int(ctx, "clip.vision.block_count");
+        hparams.image_size = get_int(ctx, "clip.vision.image_size");
+        hparams.patch_size = get_int(ctx, "clip.vision.patch_size");
+        hparams.projection_dim = get_int(ctx, "clip.vision.projection_dim");
+
+        if (1 /*verbosity >= 2*/) {
+
+            printf("\n%s: vision model hparams\n", __func__);
+            printf("image_size         %d\n", hparams.image_size);
+            printf("patch_size         %d\n", hparams.patch_size);
+            printf("v_hidden_size      %d\n", hparams.hidden_size);
+            printf("v_n_intermediate   %d\n", hparams.n_intermediate);
+            printf("v_projection_dim   %d\n", hparams.projection_dim);
+            printf("v_n_head           %d\n", hparams.n_head);
+            printf("v_n_layer          %d\n", hparams.n_layer);
+        }
+    }
+
+    ggml_free(ctx_data);
+    gguf_free(ctx);
+
+    return true;
+}
 
 // utility function for a workaround until https://github.com/ggerganov/ggml/issues/260 is resolved
 // after that, remove this and use the mechanism implemented in GGML directly
@@ -412,6 +548,8 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
     if (verbosity >= 1) {
         printf("%s: loading model from '%s' - please wait...", __func__, fname);
     }
+    load_gguf(fname);
+    exit(0);
 
     auto fin = std::ifstream(fname, std::ios::binary);
     if (!fin) {
