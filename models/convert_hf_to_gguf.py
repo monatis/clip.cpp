@@ -32,7 +32,7 @@ def get_tensor_name(name: str) -> str:
     if "projection" in name:
         return name
     
-    return name.replace("text_model", "t").replace("vision_model", "v").replace("encoder.layers", "blk").replace("embeddings.", "").replace("_proj", "").replace("self_attn.", "attn_").replace("layer_norm", "ln").replace("layernorm", "ln").replace("mlp.fc1", "fc_up").replace("mlp.fc2", "fc_down")
+    return name.replace("text_model", "t").replace("vision_model", "v").replace("encoder.layers", "blk").replace("embeddings.", "").replace("_proj", "").replace("self_attn.", "attn_").replace("layer_norm", "ln").replace("layernorm", "ln").replace("mlp.fc1", "ffn_down").replace("mlp.fc2", "ffn_up").replace("embedding", "embd").replace("final", "post").replace("layrnorm", "ln")
 
 
 def bytes_to_unicode():
@@ -195,7 +195,6 @@ for name, data in list_vars.items():
 
 fout.write_header_to_file()
 fout.write_kv_data_to_file()
-fout.write_ti_data_to_file()
 fout.write_tensors_to_file()
 fout.close()
 

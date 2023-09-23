@@ -17,13 +17,45 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-// #define CLIP_DEBUG
+#define CLIP_DEBUG
+
+static std::string format(const char * fmt, ...) {
+    va_list ap;
+    va_list ap2;
+    va_start(ap, fmt);
+    va_copy(ap2, ap);
+    int size = vsnprintf(NULL, 0, fmt, ap);
+    GGML_ASSERT(size >= 0 && size < INT_MAX); // NOLINT
+    std::vector<char> buf(size + 1);
+    int size2 = vsnprintf(buf.data(), size + 1, fmt, ap2);
+    GGML_ASSERT(size2 == size);
+    va_end(ap2);
+    va_end(ap);
+    return std::string(buf.data(), buf.size());
+}
+
+#define TN_TOKEN_EMBD "%s.token_embd.weight"
+#define TN_POS_EMBD "%s.position_embd.weight"
+#define TN_CLASS_EMBD "v.class_embd"
+#define TN_PATCH_EMBD "v.patch_embd.weight"
+#define TN_ATTN_K "%s.blk.%d.attn_k.%s"
+#define TN_ATTN_Q "%s.blk.%d.attn_q.%s"
+#define TN_ATTN_V "%s.blk.%d.attn_v.%s"
+#define TN_ATTN_OUTPUT "%s.blk.%d.attn_out.%s"
+#define TN_FFN_DOWN "%s.blk.%d.ffn_down.%s"
+#define TN_FFN_UP "%s.blk.%d.ffn_up.%s"
+#define TN_LN_1 "%s.blk.%d.ln1.%s"
+#define TN_LN_2 "%s.blk.%d.ln2.%s"
+#define TN_LN_PRE "%s.pre_ln.%s"
+#define TN_LN_POST "%s.post_ln.%s"
+#define TN_TEXT_PROJ "text_projection.weight"
+#define TN_VIS_PROJ "visual_projection.weight"
 
 int get_key_idx(const gguf_context * ctx, char * key) {
     int i = gguf_find_key(ctx, key);
     if (i == -1) {
-        fprintf(stderr, "key %s not found in file\n", key);
-        throw std::runtime_error("Missing required key");
+        // fprintf(stderr, "key %s not found in file\n", key);
+        throw std::runtime_error(format("Missing required key: %s", key));
     }
 
     return i;
@@ -33,6 +65,16 @@ const int get_int(const gguf_context * ctx, char * key) {
     const int i = get_key_idx(ctx, key);
 
     return gguf_get_val_i32(ctx, i);
+}
+
+struct ggml_tensor * get_tensor(struct ggml_context * ctx, std::string name) {
+    struct ggml_tensor * cur = ggml_get_tensor(ctx, name.c_str());
+    if (!cur) {
+        printf("unable to find tensor %s\n", name.c_str());
+        throw std::runtime_error(format("unable to find tensor %s\n", name.c_str()));
+    }
+
+    return cur;
 }
 
 //
@@ -147,25 +189,23 @@ struct clip_ctx {
 };
 
 // read and create ggml_context containing the tensors and their data
-static bool load_gguf(const std::string & fname) {
+struct clip_ctx * clip_model_load_gguf(const char * fname, const int verbosity = 1) {
 
-    clip_ctx * new_clip = new clip_ctx;
-    auto & vision_model = new_clip->vision_model;
-    auto & ctx_data = new_clip->ctx;
+    struct ggml_context * meta = NULL;
 
     struct gguf_init_params params = {
-        /*.no_alloc = */ false,
-        /*.ctx      = */ &ctx_data,
+        /*.no_alloc = */ true,
+        /*.ctx      = */ &meta,
     };
 
-    struct gguf_context * ctx = gguf_init_from_file(fname.c_str(), params);
+    struct gguf_context * ctx = gguf_init_from_file(fname, params);
 
     printf("%s: version:      %d\n", __func__, gguf_get_version(ctx));
     printf("%s: alignment:   %zu\n", __func__, gguf_get_alignment(ctx));
     printf("%s: data offset: %zu\n", __func__, gguf_get_data_offset(ctx));
 
     // kv
-    {
+    if (verbosity >= 2) {
         const int n_kv = gguf_get_n_kv(ctx);
 
         printf("%s: n_kv: %d\n", __func__, n_kv);
@@ -178,17 +218,32 @@ static bool load_gguf(const std::string & fname) {
     }
 
     // data
+    size_t ctx_size = 0;
     {
         const int n_tensors = gguf_get_n_tensors(ctx);
 
-        for (int i = 0; i < 3; ++i) {
+        for (int i = 0; i < n_tensors; ++i) {
             const char * name = gguf_get_tensor_name(ctx, i);
+            const size_t offset = gguf_get_tensor_offset(ctx, i);
 
-            struct ggml_tensor * cur = ggml_get_tensor(ctx_data, name);
+            struct ggml_tensor * cur = ggml_get_tensor(meta, name);
+            ctx_size += sizeof(struct ggml_tensor) + GGML_OBJECT_SIZE;
+            size_t tensor_size = ggml_nbytes(cur);
+            size_t padded_size = ggml_nbytes_pad(cur);
+            ctx_size += padded_size;
+            if (verbosity >= 2) {
+                printf("%s: tensor[%d]: n_dims = %d, name = %s, tensor_size=%zu, padded_size=%zu, offset=%zu\n", __func__, i,
+                       cur->n_dims, cur->name, tensor_size, padded_size, offset);
+            }
+        }
 
-            printf("%s: tensor[%d]: n_dims = %d, name = %s, data = %p\n", __func__, i, cur->n_dims, cur->name, cur->data);
+        if (verbosity >= 1) {
+            printf("%s: ctx_meta size: %zu\n", __func__, ggml_get_mem_size(meta));
+            printf("%s: ctx_data size: %zu (%f MB)\n", __func__, ctx_size, (ctx_size / (1024.0f * 1024.0f)));
         }
     }
+
+    clip_ctx * new_clip = new clip_ctx;
 
     // model capabilities
     {
@@ -202,7 +257,47 @@ static bool load_gguf(const std::string & fname) {
         printf("%s: has_vision_encoder: %d\n", __func__, new_clip->has_vision_encoder);
     }
 
-    printf("%s: ctx_data size (MB): %f\n", __func__, ggml_get_mem_size(ctx_data) / (1024.0 * 1024.0));
+    // load tensors
+    {
+        struct ggml_init_params params = {
+            .mem_size = ctx_size,
+            .mem_buffer = NULL,
+            .no_alloc = false,
+        };
+
+        new_clip->ctx = ggml_init(params);
+        if (!new_clip->ctx) {
+            fprintf(stderr, "%s: ggml_init() failed\n", __func__);
+            clip_free(new_clip);
+            return nullptr;
+        }
+
+        auto fin = std::ifstream(fname, std::ios::binary);
+        if (!fin) {
+            printf("cannot open model file for loading tensors\n");
+            clip_free(new_clip);
+            return nullptr;
+        }
+
+        const int n_tensors = gguf_get_n_tensors(ctx);
+        for (int i = 0; i < n_tensors; ++i) {
+            const char * name = gguf_get_tensor_name(ctx, i);
+            struct ggml_tensor * t = ggml_get_tensor(meta, name);
+            struct ggml_tensor * cur = ggml_dup_tensor(new_clip->ctx, t);
+            ggml_set_name(cur, name);
+
+            const size_t offset = gguf_get_data_offset(ctx) + gguf_get_tensor_offset(ctx, i);
+            fin.seekg(offset, std::ios::beg);
+            if (!fin) {
+                printf("%s: failed to seek for tensor %s\n", __func__, name);
+                clip_free(new_clip);
+                return nullptr;
+            }
+            fin.read(reinterpret_cast<char *>(cur->data), ggml_nbytes(t));
+        }
+
+        fin.close();
+    }
 
     // text model
     if (new_clip->has_text_encoder) {
@@ -218,8 +313,14 @@ static bool load_gguf(const std::string & fname) {
 
         const int idx_tokens = get_key_idx(ctx, "tokenizer.ggml.tokens");
         hparams.n_vocab = gguf_get_arr_n(ctx, idx_tokens);
+        auto & vocab = new_clip->vocab;
+        for (int id = 0; id < hparams.n_vocab; ++id) {
+            const std::string token = gguf_get_arr_str(ctx, idx_tokens, id);
+            vocab.id_to_token[id] = token;
+            vocab.token_to_id[token] = id;
+        }
 
-        if (1 /*verbosity >= 2*/) {
+        if (verbosity >= 2) {
             printf("\n%s: text model hparams\n", __func__);
             printf("n_vocab            %d\n", hparams.n_vocab);
             printf("num_positions      %d\n", hparams.num_positions);
@@ -229,7 +330,35 @@ static bool load_gguf(const std::string & fname) {
             printf("t_n_head           %d\n", hparams.n_head);
             printf("t_n_layer          %d\n", hparams.n_layer);
         }
+
+        text_model.token_embeddings = get_tensor(new_clip->ctx, format(TN_TOKEN_EMBD, "t"));
+        text_model.position_embeddings = get_tensor(new_clip->ctx, format(TN_POS_EMBD, "t"));
+        text_model.post_ln_w = get_tensor(new_clip->ctx, format(TN_LN_POST, "t", "weight"));
+        text_model.post_ln_b = get_tensor(new_clip->ctx, format(TN_LN_POST, "t", "bias"));
+        text_model.projection = get_tensor(new_clip->ctx, TN_TEXT_PROJ);
+        text_model.layers.resize(hparams.n_layer);
+        for (int il = 0; il < hparams.n_layer; ++il) {
+            auto & layer = text_model.layers[il];
+            layer.k_w = get_tensor(new_clip->ctx, format(TN_ATTN_K, "t", il, "weight"));
+            layer.q_w = get_tensor(new_clip->ctx, format(TN_ATTN_Q, "t", il, "weight"));
+            layer.v_w = get_tensor(new_clip->ctx, format(TN_ATTN_V, "t", il, "weight"));
+            layer.o_w = get_tensor(new_clip->ctx, format(TN_ATTN_OUTPUT, "t", il, "weight"));
+            layer.ln_1_w = get_tensor(new_clip->ctx, format(TN_LN_1, "t", il, "weight"));
+            layer.ln_2_w = get_tensor(new_clip->ctx, format(TN_LN_2, "t", il, "weight"));
+            layer.ff_i_w = get_tensor(new_clip->ctx, format(TN_FFN_DOWN, "t", il, "weight"));
+            layer.ff_o_w = get_tensor(new_clip->ctx, format(TN_FFN_UP, "t", il, "weight"));
+            layer.k_b = get_tensor(new_clip->ctx, format(TN_ATTN_K, "t", il, "bias"));
+            layer.q_b = get_tensor(new_clip->ctx, format(TN_ATTN_Q, "t", il, "bias"));
+            layer.v_b = get_tensor(new_clip->ctx, format(TN_ATTN_V, "t", il, "bias"));
+            layer.o_b = get_tensor(new_clip->ctx, format(TN_ATTN_OUTPUT, "t", il, "bias"));
+            layer.ln_1_b = get_tensor(new_clip->ctx, format(TN_LN_1, "t", il, "bias"));
+            layer.ln_2_b = get_tensor(new_clip->ctx, format(TN_LN_2, "t", il, "bias"));
+            layer.ff_i_b = get_tensor(new_clip->ctx, format(TN_FFN_DOWN, "t", il, "bias"));
+            layer.ff_o_b = get_tensor(new_clip->ctx, format(TN_FFN_UP, "t", il, "bias"));
+        }
     }
+
+    new_clip->buf_compute.resize(24 * 1024 * 1024);
 
     // vision model
     if (new_clip->has_vision_encoder) {
@@ -244,7 +373,7 @@ static bool load_gguf(const std::string & fname) {
         hparams.patch_size = get_int(ctx, "clip.vision.patch_size");
         hparams.projection_dim = get_int(ctx, "clip.vision.projection_dim");
 
-        if (1 /*verbosity >= 2*/) {
+        if (verbosity >= 2) {
 
             printf("\n%s: vision model hparams\n", __func__);
             printf("image_size         %d\n", hparams.image_size);
@@ -255,18 +384,48 @@ static bool load_gguf(const std::string & fname) {
             printf("v_n_head           %d\n", hparams.n_head);
             printf("v_n_layer          %d\n", hparams.n_layer);
         }
+
+        vision_model.patch_embeddings = get_tensor(new_clip->ctx, TN_PATCH_EMBD);
+        vision_model.class_embedding = get_tensor(new_clip->ctx, TN_CLASS_EMBD);
+        vision_model.position_embeddings = get_tensor(new_clip->ctx, format(TN_POS_EMBD, "v"));
+        vision_model.pre_ln_w = get_tensor(new_clip->ctx, format(TN_LN_PRE, "v", "weight"));
+        vision_model.pre_ln_b = get_tensor(new_clip->ctx, format(TN_LN_PRE, "v", "bias"));
+        vision_model.post_ln_w = get_tensor(new_clip->ctx, format(TN_LN_POST, "v", "weight"));
+        vision_model.post_ln_b = get_tensor(new_clip->ctx, format(TN_LN_POST, "v", "bias"));
+        vision_model.projection = get_tensor(new_clip->ctx, TN_TEXT_PROJ);
+        vision_model.layers.resize(hparams.n_layer);
+        for (int il = 0; il < hparams.n_layer; ++il) {
+            auto & layer = vision_model.layers[il];
+            layer.k_w = get_tensor(new_clip->ctx, format(TN_ATTN_K, "v", il, "weight"));
+            layer.q_w = get_tensor(new_clip->ctx, format(TN_ATTN_Q, "v", il, "weight"));
+            layer.v_w = get_tensor(new_clip->ctx, format(TN_ATTN_V, "v", il, "weight"));
+            layer.o_w = get_tensor(new_clip->ctx, format(TN_ATTN_OUTPUT, "v", il, "weight"));
+            layer.ln_1_w = get_tensor(new_clip->ctx, format(TN_LN_1, "v", il, "weight"));
+            layer.ln_2_w = get_tensor(new_clip->ctx, format(TN_LN_2, "v", il, "weight"));
+            layer.ff_i_w = get_tensor(new_clip->ctx, format(TN_FFN_DOWN, "v", il, "weight"));
+            layer.ff_o_w = get_tensor(new_clip->ctx, format(TN_FFN_UP, "v", il, "weight"));
+            layer.k_b = get_tensor(new_clip->ctx, format(TN_ATTN_K, "v", il, "bias"));
+            layer.q_b = get_tensor(new_clip->ctx, format(TN_ATTN_Q, "v", il, "bias"));
+            layer.v_b = get_tensor(new_clip->ctx, format(TN_ATTN_V, "v", il, "bias"));
+            layer.o_b = get_tensor(new_clip->ctx, format(TN_ATTN_OUTPUT, "v", il, "bias"));
+            layer.ln_1_b = get_tensor(new_clip->ctx, format(TN_LN_1, "v", il, "bias"));
+            layer.ln_2_b = get_tensor(new_clip->ctx, format(TN_LN_2, "v", il, "bias"));
+            layer.ff_i_b = get_tensor(new_clip->ctx, format(TN_FFN_DOWN, "v", il, "bias"));
+            layer.ff_o_b = get_tensor(new_clip->ctx, format(TN_FFN_UP, "v", il, "bias"));
+        }
     }
 
-    ggml_free(ctx_data);
+    ggml_free(meta);
     gguf_free(ctx);
 
-    return true;
+    return new_clip;
 }
 
 // utility function for a workaround until https://github.com/ggerganov/ggml/issues/260 is resolved
 // after that, remove this and use the mechanism implemented in GGML directly
 size_t get_mem_req_by_size(const size_t n_tensors, const int n_image_positions) {
     size_t mb = 1024 * 1024;
+    return 24 * mb;
     switch (n_tensors) {
     case 397:                          // base
         if (n_image_positions == 50) { // patch size = 32
@@ -291,6 +450,7 @@ size_t get_mem_req_by_size(const size_t n_tensors, const int n_image_positions) 
 
 size_t get_scr_buf_req_by_size(const size_t n_tensors, const int n_positions) {
     size_t mb = 1024 * 1024;
+    return 96 * mb;
     switch (n_tensors) {
     case 397:
         if (n_positions <= 50) {
@@ -548,8 +708,6 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
     if (verbosity >= 1) {
         printf("%s: loading model from '%s' - please wait...", __func__, fname);
     }
-    load_gguf(fname);
-    exit(0);
 
     auto fin = std::ifstream(fname, std::ios::binary);
     if (!fin) {

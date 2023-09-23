@@ -42,6 +42,7 @@ struct clip_tokens {
 };
 
 struct clip_ctx * clip_model_load(const char * fname, const int verbosity);
+struct clip_ctx * clip_model_load_gguf(const char * fname, const int verbosity);
 
 void clip_free(struct clip_ctx * ctx);
 
