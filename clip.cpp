@@ -189,7 +189,7 @@ struct clip_ctx {
 };
 
 // read and create ggml_context containing the tensors and their data
-struct clip_ctx * clip_model_load_gguf(const char * fname, const int verbosity = 1) {
+struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
 
     struct ggml_context * meta = NULL;
 
@@ -392,7 +392,7 @@ struct clip_ctx * clip_model_load_gguf(const char * fname, const int verbosity =
         vision_model.pre_ln_b = get_tensor(new_clip->ctx, format(TN_LN_PRE, "v", "bias"));
         vision_model.post_ln_w = get_tensor(new_clip->ctx, format(TN_LN_POST, "v", "weight"));
         vision_model.post_ln_b = get_tensor(new_clip->ctx, format(TN_LN_POST, "v", "bias"));
-        vision_model.projection = get_tensor(new_clip->ctx, TN_TEXT_PROJ);
+        vision_model.projection = get_tensor(new_clip->ctx, TN_VIS_PROJ);
         vision_model.layers.resize(hparams.n_layer);
         for (int il = 0; il < hparams.n_layer; ++il) {
             auto & layer = vision_model.layers[il];
@@ -704,7 +704,7 @@ void clip_image_batch_preprocess(const clip_ctx * ctx, const int n_threads, cons
     }
 }
 
-struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
+struct clip_ctx * clip_model_load_legacy(const char * fname, const int verbosity = 1) {
     if (verbosity >= 1) {
         printf("%s: loading model from '%s' - please wait...", __func__, fname);
     }
@@ -1233,6 +1233,11 @@ void clip_free(clip_ctx * ctx) {
 
 bool clip_text_encode(const clip_ctx * ctx, const int n_threads, const clip_tokens * tokens, float * vec,
                       const bool normalize) {
+    if (!ctx->has_text_encoder) {
+        printf("This GGUF file seems to have no text encoder\n");
+        return false;
+    }
+
     const auto & model = ctx->text_model;
     const auto & hparams = model.hparams;
     const size_t N = tokens->size;
@@ -1445,6 +1450,11 @@ bool clip_text_encode(const clip_ctx * ctx, const int n_threads, const clip_toke
 }
 
 bool clip_image_encode(const clip_ctx * ctx, const int n_threads, clip_image_f32 * img, float * vec, const bool normalize) {
+    if (!ctx->has_vision_encoder) {
+        printf("This gguf file seems to have no vision encoder\n");
+        return false;
+    }
+
     clip_image_f32_batch imgs{};
     imgs.size = 1;
     imgs.data = img;
@@ -1453,6 +1463,12 @@ bool clip_image_encode(const clip_ctx * ctx, const int n_threads, clip_image_f32
 
 bool clip_image_batch_encode(const clip_ctx * ctx, const int n_threads, const clip_image_f32_batch * imgs, float * vec,
                              const bool normalize) {
+
+    if (!ctx->has_vision_encoder) {
+        printf("This gguf file seems to have no vision encoder\n");
+        return false;
+    }
+
     const auto & model = ctx->vision_model;
     const auto & hparams = model.hparams;
 
@@ -1734,10 +1750,22 @@ float clip_similarity_score(const float * vec1, const float * vec2, const int ve
 
 bool clip_compare_text_and_image(const clip_ctx * ctx, const int n_threads, const char * text, const clip_image_u8 * image,
                                  float * score) {
+    if (ctx->has_text_encoder && ctx->has_vision_encoder) {
+        printf("clip_compare_text_enc_image function can only be used with two-tower models\n");
+        return false;
+    }
+
     // prepare image and text vectors
     const int projection_dim = ctx->vision_model.hparams.projection_dim;
     float img_vec[projection_dim];
     float txt_vec[projection_dim];
+
+    // tokenize and encode text
+    auto tokens = clip_tokenize(ctx, text);
+
+    if (!clip_text_encode(ctx, n_threads, &tokens, txt_vec, true)) {
+        return false;
+    }
 
     // preprocess and encode image
     clip_image_f32 img_res;
@@ -1747,13 +1775,6 @@ bool clip_compare_text_and_image(const clip_ctx * ctx, const int n_threads, cons
     }
 
     if (!clip_image_encode(ctx, n_threads, &img_res, img_vec, true)) {
-        return false;
-    }
-
-    // tokenize and encode text
-    auto tokens = clip_tokenize(ctx, text);
-
-    if (!clip_text_encode(ctx, n_threads, &tokens, txt_vec, true)) {
         return false;
     }
 

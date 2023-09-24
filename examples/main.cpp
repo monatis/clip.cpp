@@ -36,7 +36,11 @@ int main(int argc, char ** argv) {
     const char * text = params.texts[0].c_str();
     float score;
 
-    clip_compare_text_and_image(ctx, params.n_threads, text, &img0, &score);
+    if (!clip_compare_text_and_image(ctx, params.n_threads, text, &img0, &score)) {
+        printf("Unable to compare text and image\n");
+        clip_free(ctx);
+        return 1;
+    }
 
     const int64_t t_main_end_us = ggml_time_us();
 
