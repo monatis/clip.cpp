@@ -1,15 +1,6 @@
 #include "clip.h"
 #include "ggml/ggml.h"
-
-#include <cassert>
-#include <cmath>
-#include <cstdio>
-#include <cstring>
-#include <fstream>
-#include <map>
-#include <regex>
 #include <string>
-#include <vector>
 
 void print_usage(int argc, char ** argv) {
 
