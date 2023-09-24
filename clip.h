@@ -102,6 +102,8 @@ bool softmax_with_sorting(float * arr, const int length, float * sorted_scores, 
 bool clip_zero_shot_label_image(struct clip_ctx * ctx, const int n_threads, const struct clip_image_u8 * input_img,
                                 const char ** labels, const size_t n_labels, float * scores, int * indices);
 
+bool clip_model_quantize(const char * fname_inp, const char * fname_out, const int itype);
+
 #ifdef __cplusplus
 }
 #endif
