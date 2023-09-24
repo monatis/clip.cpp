@@ -40,11 +40,12 @@ int main() {
     }
 
     // Tokenize text
-    struct clip_tokens tokens = clip_tokenize(ctx, text);
+    struct clip_tokens * tokens = NULL;
+    clip_tokenize(ctx, text, tokens);
 
     // Encode text
     float txt_vec[vec_dim];
-    if (!clip_text_encode(ctx, n_threads, &tokens, txt_vec, true)) {
+    if (!clip_text_encode(ctx, n_threads, tokens, txt_vec, true)) {
         fprintf(stderr, "%s: failed to encode text\n", __func__);
         return 1;
     }

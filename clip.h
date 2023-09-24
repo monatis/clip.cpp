@@ -76,7 +76,7 @@ struct clip_image_f32_batch {
     size_t size;
 };
 
-struct clip_tokens clip_tokenize(const struct clip_ctx * ctx, const char * text);
+bool clip_tokenize(const struct clip_ctx * ctx, const char * text, struct clip_tokens * tokens);
 
 struct clip_image_u8 * make_clip_image_u8();
 struct clip_image_f32 * make_clip_image_f32();

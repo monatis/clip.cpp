@@ -182,6 +182,8 @@ struct clip_ctx {
     struct clip_text_model text_model;
     struct clip_vision_model vision_model;
     struct clip_vocab vocab;
+    float image_mean[3];
+    float image_std[3];
     int32_t use_gelu = 0;
     int32_t ftype = 1;
     struct ggml_context * ctx;
@@ -358,8 +360,6 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
         }
     }
 
-    new_clip->buf_compute.resize(24 * 1024 * 1024);
-
     // vision model
     if (new_clip->has_vision_encoder) {
         // load vision model
@@ -372,6 +372,13 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
         hparams.image_size = get_int(ctx, "clip.vision.image_size");
         hparams.patch_size = get_int(ctx, "clip.vision.patch_size");
         hparams.projection_dim = get_int(ctx, "clip.vision.projection_dim");
+
+        int idx_mean = get_key_idx(ctx, "clip.vision.image_mean");
+        int idx_std = get_key_idx(ctx, "clip.vision.image_std");
+        for (int i = 0; i < 3; ++i) {
+            new_clip->image_mean[i] = *((float *)gguf_get_arr_data(ctx, idx_mean));
+            new_clip->image_std[i] = *((float *)gguf_get_arr_data(ctx, idx_std));
+        }
 
         if (verbosity >= 2) {
 
@@ -417,6 +424,8 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
 
     ggml_free(meta);
     gguf_free(ctx);
+
+    new_clip->buf_compute.resize(24 * 1024 * 1024);
 
     return new_clip;
 }
@@ -473,7 +482,12 @@ size_t get_scr_buf_req_by_size(const size_t n_tensors, const int n_positions) {
     }
 }
 
-struct clip_tokens clip_tokenize(const clip_ctx * ctx, const char * text) {
+bool clip_tokenize(const clip_ctx * ctx, const char * text, struct clip_tokens * tokens) {
+    if (!ctx->has_text_encoder) {
+        printf("This GGUF file seems to have no text encoder\n");
+        return false;
+    }
+
     std::vector<std::string> words;
 
     // first split the text into words
@@ -506,8 +520,8 @@ struct clip_tokens clip_tokenize(const clip_ctx * ctx, const char * text) {
         }
     }
 
-    std::vector<clip_vocab::id> tokens;
-    tokens.push_back(49406); // startoftext
+    std::vector<clip_vocab::id> v_tokens;
+    v_tokens.push_back(49406); // startoftext
 
     for (const auto & word : words) {
         // feel lucky? let's try if it's a full word
@@ -521,7 +535,7 @@ struct clip_tokens clip_tokenize(const clip_ctx * ctx, const char * text) {
         full_word += "</w>";
         auto wit = ctx->vocab.token_to_id.find(full_word);
         if (wit != ctx->vocab.token_to_id.end()) {
-            tokens.push_back(wit->second);
+            v_tokens.push_back(wit->second);
             continue;
         }
 
@@ -530,7 +544,7 @@ struct clip_tokens clip_tokenize(const clip_ctx * ctx, const char * text) {
                 auto cand = word.substr(i, j - i + 1);
                 auto it = ctx->vocab.token_to_id.find(cand);
                 if (it != ctx->vocab.token_to_id.end()) { // word.substr(i, j-i+1) in vocab
-                    tokens.push_back(it->second);
+                    v_tokens.push_back(it->second);
                     i = j + 1;
                     break;
                 } else if (j == i) { // word.substr(i, 1) has no matching
@@ -541,15 +555,14 @@ struct clip_tokens clip_tokenize(const clip_ctx * ctx, const char * text) {
         }
     }
 
-    tokens.push_back(49407); // endoftext
+    v_tokens.push_back(49407); // endoftext
 
-    clip_tokens c_tokens{};
-    c_tokens.size = tokens.size();
+    tokens->size = v_tokens.size();
 
-    c_tokens.data = new int[tokens.size()];
-    std::copy(tokens.begin(), tokens.end(), c_tokens.data);
+    tokens->data = new int[v_tokens.size()];
+    std::copy(v_tokens.begin(), v_tokens.end(), tokens->data);
 
-    return c_tokens;
+    return true;
 }
 
 clip_image_u8 * make_clip_image_u8() { return new clip_image_u8(); }
@@ -578,6 +591,11 @@ bool clip_image_load_from_file(const char * fname, clip_image_u8 * img) {
 // normalize: x = (x - mean) / std
 // TODO: implement bicubic interpolation instead of linear.
 bool clip_image_preprocess(const clip_ctx * ctx, const clip_image_u8 * img, clip_image_f32 * res) {
+    if (!ctx->has_vision_encoder) {
+        printf("This gguf file seems to have no vision encoder\n");
+        return false;
+    }
+
     const int nx = img->nx;
     const int ny = img->ny;
 
@@ -594,8 +612,8 @@ bool clip_image_preprocess(const clip_ctx * ctx, const clip_image_u8 * img, clip
     const int nx3 = int(nx / scale + 0.5f);
     const int ny3 = int(ny / scale + 0.5f);
 
-    const float m3[3] = {0.48145466f, 0.4578275f, 0.40821073f};
-    const float s3[3] = {0.26862954f, 0.26130258f, 0.27577711f};
+    const auto & m3 = ctx->image_mean; // {0.48145466f, 0.4578275f, 0.40821073f};
+    const auto & s3 = ctx->image_std;  // {0.26862954f, 0.26130258f, 0.27577711f};
 
     for (int y = 0; y < ny3; y++) {
         for (int x = 0; x < nx3; x++) {
@@ -1750,8 +1768,8 @@ float clip_similarity_score(const float * vec1, const float * vec2, const int ve
 
 bool clip_compare_text_and_image(const clip_ctx * ctx, const int n_threads, const char * text, const clip_image_u8 * image,
                                  float * score) {
-    if (ctx->has_text_encoder && ctx->has_vision_encoder) {
-        printf("clip_compare_text_enc_image function can only be used with two-tower models\n");
+    if (!(ctx->has_text_encoder && ctx->has_vision_encoder)) {
+        printf("clip_compare_text_and_image function can only be used with two-tower models\n");
         return false;
     }
 
@@ -1761,7 +1779,10 @@ bool clip_compare_text_and_image(const clip_ctx * ctx, const int n_threads, cons
     float txt_vec[projection_dim];
 
     // tokenize and encode text
-    auto tokens = clip_tokenize(ctx, text);
+    clip_tokens tokens;
+    if (!clip_tokenize(ctx, text, &tokens)) {
+        return false;
+    }
 
     if (!clip_text_encode(ctx, n_threads, &tokens, txt_vec, true)) {
         return false;
@@ -1837,6 +1858,11 @@ bool softmax_with_sorting(float * arr, const int length, float * sorted_scores, 
 
 bool clip_zero_shot_label_image(struct clip_ctx * ctx, const int n_threads, const struct clip_image_u8 * input_img,
                                 const char ** labels, const size_t n_labels, float * scores, int * indices) {
+    if (!(ctx->has_text_encoder && ctx->has_vision_encoder)) {
+        printf("clip_zero_shot_label_image function can only be used with two-tower models\n");
+        return false;
+    }
+
     // load the image
     clip_image_f32 img_res;
 
@@ -1855,7 +1881,8 @@ bool clip_zero_shot_label_image(struct clip_ctx * ctx, const int n_threads, cons
 
     for (int i = 0; i < n_labels; i++) {
         const auto & text = labels[i];
-        auto tokens = clip_tokenize(ctx, text);
+        clip_tokens tokens;
+        clip_tokenize(ctx, text, &tokens);
         clip_text_encode(ctx, n_threads, &tokens, txt_vec, false);
         similarities[i] = clip_similarity_score(img_vec, txt_vec, vec_dim);
     }

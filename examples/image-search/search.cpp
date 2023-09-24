@@ -149,7 +149,8 @@ int main(int argc, char ** argv) {
         }
     } else {
 
-        auto tokens = clip_tokenize(clip_ctx, params.search_text.c_str());
+        clip_tokens tokens;
+        clip_tokenize(clip_ctx, params.search_text.c_str(), &tokens);
 
         clip_text_encode(clip_ctx, params.n_threads, &tokens, vec.data(), true);
     }
