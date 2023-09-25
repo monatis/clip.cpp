@@ -114,8 +114,8 @@ clip_get_vision_hparams.argtypes = [ctypes.POINTER(ClipContext)]
 clip_get_vision_hparams.restype = ctypes.POINTER(ClipVisionHparams)
 
 clip_tokenize = clip_lib.clip_tokenize
-clip_tokenize.argtypes = [ctypes.POINTER(ClipContext), ctypes.c_char_p]
-clip_tokenize.restype = ClipTokens
+clip_tokenize.argtypes = [ctypes.POINTER(ClipContext), ctypes.c_char_p, ctypes.POINTER(ClipTokens)]
+clip_tokenize.restype = ctypes.c_bool
 
 clip_image_load_from_file = clip_lib.clip_image_load_from_file
 clip_image_load_from_file.argtypes = [ctypes.c_char_p, ctypes.POINTER(ClipImageU8)]
@@ -310,8 +310,11 @@ class Clip:
         return _struct_to_dict(clip_get_text_hparams(self.ctx).contents)
 
     def tokenize(self, text: str) -> List[int]:
-        tokens = clip_tokenize(self.ctx, text.encode("utf8"))
-        return [tokens.data[i] for i in range(tokens.size)]
+        tokens = ClipTokens()
+        if clip_tokenize(self.ctx, text.encode("utf8"), ctypes.pointer(tokens)):
+            return [tokens.data[i] for i in range(tokens.size)]
+        else:
+            raise RuntimeError("unable to tokenize text")
 
     def encode_text(
         self,
