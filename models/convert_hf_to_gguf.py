@@ -123,7 +123,7 @@ fout = GGUFWriter(path=fname_out, arch="clip")
 fout.add_bool("clip.has_text_encoder", has_text_encoder)
 fout.add_bool("clip.has_vision_encoder", has_vision_encoder)
 fout.add_file_type(ftype)
-model_name = config["name_or_path"] if "name_or_path" in config else dir_model.split(os.path.sep)[-1]
+model_name = config["_name_or_path"] if "_name_or_path" in config else dir_model.split(os.path.sep)[-1]
 fout.add_name(model_name)
 if args.text_only:
     fout.add_description("text-only CLIP model")

@@ -34,8 +34,13 @@ static std::string format(const char * fmt, ...) {
     return std::string(buf.data(), buf.size());
 }
 
+//
 // key constants
+//
+
 #define KEY_FTYPE "general.file_type"
+#define KEY_NAME "general.name"
+#define KEY_DESCRIPTION "general.description"
 #define KEY_HAS_TEXT_ENC "clip.has_text_encoder"
 #define KEY_HAS_VIS_ENC "clip.has_vision_encoder"
 #define KEY_USE_GELU "clip.use_gelu"
@@ -51,7 +56,10 @@ static std::string format(const char * fmt, ...) {
 #define KEY_IMAGE_MEAN "clip.vision.image_mean"
 #define KEY_IMAGE_STD "clip.vision.image_std"
 
+//
 // tensor name constants
+//
+
 #define TN_TOKEN_EMBD "%s.token_embd.weight"
 #define TN_POS_EMBD "%s.position_embd.weight"
 #define TN_CLASS_EMBD "v.class_embd"
@@ -69,10 +77,14 @@ static std::string format(const char * fmt, ...) {
 #define TN_TEXT_PROJ "text_projection.weight"
 #define TN_VIS_PROJ "visual_projection.weight"
 
+//
+// utilities to get data from a gguf file
+//
+
 int get_key_idx(const gguf_context * ctx, const char * key) {
     int i = gguf_find_key(ctx, key);
     if (i == -1) {
-        // fprintf(stderr, "key %s not found in file\n", key);
+        fprintf(stderr, "key %s not found in file\n", key);
         throw std::runtime_error(format("Missing required key: %s", key));
     }
 
@@ -233,6 +245,10 @@ struct clip_ctx {
     struct clip_buffer buf_compute;
 };
 
+//
+// memory allocation and management
+//
+
 // utility function for a workaround until https://github.com/ggerganov/ggml/issues/260 is resolved
 // after that, remove this and use the mechanism implemented in GGML directly
 size_t get_mem_req_by_size(struct clip_ctx * ctx) {
@@ -272,6 +288,42 @@ size_t get_mem_req_by_size(struct clip_ctx * ctx) {
     }
 }
 
+size_t get_scr_buf_req_by_size(struct clip_ctx * ctx) {
+    size_t mb = 1024 * 1024;
+
+    const int n_tensors = gguf_get_n_tensors(ctx->ctx_gguf);
+    const auto & vision_hparams = clip_get_vision_hparams(ctx);
+    const int n_positions =
+        ctx->has_vision_encoder ? vision_hparams->image_size * vision_hparams->image_size / vision_hparams->patch_size + 1 : 77;
+
+    switch (n_tensors) {
+    case 397:
+    case 200:
+        if (n_positions <= 50) {
+            return 32 * mb;
+        } else {
+            return 96 * mb;
+        }
+    case 197:
+        return 32 * mb;
+    case 589:
+    case 392:
+        if (n_positions <= 257) {
+            return 96 * mb;
+        } else {
+            return 192 * mb;
+        }
+    case 909:
+    case 456:
+    case 453:
+        return 144 * mb;
+    default:
+        fprintf(stderr, "%s: Unrecognized number of tensors: %d. Check if you pass the correct model file\n", __func__,
+                n_tensors);
+        exit(1);
+    }
+}
+
 // read and create ggml_context containing the tensors and their data
 struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
 
@@ -289,6 +341,13 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
         const int n_kv = gguf_get_n_kv(ctx);
         const int ftype = get_int(ctx, KEY_FTYPE);
         const std::string ftype_str = get_ftype(ftype);
+        const int idx_name = get_key_idx(ctx, KEY_NAME);
+        const std::string name = gguf_get_val_str(ctx, idx_name);
+        const int idx_desc = get_key_idx(ctx, KEY_DESCRIPTION);
+        const std::string description = gguf_get_val_str(ctx, idx_desc);
+
+        printf("%s: model name:   %s\n", __func__, name.c_str());
+        printf("%s: description:  %s\n", __func__, description.c_str());
         printf("%s: GGUF version: %d\n", __func__, gguf_get_version(ctx));
         printf("%s: alignment:    %zu\n", __func__, gguf_get_alignment(ctx));
         printf("%s: n_tensors:    %d\n", __func__, n_tensors);
@@ -525,31 +584,6 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
     }
 
     return new_clip;
-}
-
-size_t get_scr_buf_req_by_size(const size_t n_tensors, const int n_positions) {
-    size_t mb = 1024 * 1024;
-    return 96 * mb;
-    switch (n_tensors) {
-    case 397:
-        if (n_positions <= 50) {
-            return 32 * mb;
-        } else {
-            return 96 * mb;
-        }
-    case 589:
-        if (n_positions <= 257) {
-            return 96 * mb;
-        } else {
-            return 192 * mb;
-        }
-    case 909:
-        return 144 * mb;
-    default:
-        fprintf(stderr, "%s: Unrecognized number of tensors: %zu. Check if you pass the correct model file\n", __func__,
-                n_tensors);
-        exit(1);
-    }
 }
 
 bool clip_tokenize(const clip_ctx * ctx, const char * text, struct clip_tokens * tokens) {
@@ -829,7 +863,7 @@ bool clip_text_encode(const clip_ctx * ctx, const int n_threads, const clip_toke
     struct ggml_context * ctx0 = ggml_init(params);
     struct ggml_cgraph gf = {};
 
-    static size_t scr0_size = get_scr_buf_req_by_size(gguf_get_n_tensors(ctx->ctx_gguf), N);
+    static size_t scr0_size = get_scr_buf_req_by_size((struct clip_ctx *)ctx);
     static void * scr0 = malloc(scr0_size);
 
     struct ggml_tensor * input_ids = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, N);
@@ -1062,7 +1096,7 @@ bool clip_image_batch_encode(const clip_ctx * ctx, const int n_threads, const cl
     struct ggml_context * ctx0 = ggml_init(params);
     struct ggml_cgraph gf = {};
 
-    static size_t scr0_size = get_scr_buf_req_by_size(gguf_get_n_tensors(ctx->ctx_gguf), num_positions);
+    static size_t scr0_size = get_scr_buf_req_by_size((struct clip_ctx *)ctx);
     static void * scr0 = malloc(scr0_size);
 
     struct ggml_tensor * inp_raw = ggml_new_tensor_4d(ctx0, GGML_TYPE_F32, image_size, image_size, 3, batch_size);
