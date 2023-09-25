@@ -6,9 +6,6 @@
 #include "common-clip.h"
 
 int main(int argc, char ** argv) {
-    ggml_time_init();
-    const int64_t t_main_start_us = ggml_time_us();
-
     app_params params;
     if (!app_params_parse(argc, argv, params, 0, 0)) {
         print_help(argc, argv, params, 0, 0);

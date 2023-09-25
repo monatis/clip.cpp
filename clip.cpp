@@ -34,6 +34,24 @@ static std::string format(const char * fmt, ...) {
     return std::string(buf.data(), buf.size());
 }
 
+// key constants
+#define KEY_FTYPE "general.file_type"
+#define KEY_HAS_TEXT_ENC "clip.has_text_encoder"
+#define KEY_HAS_VIS_ENC "clip.has_vision_encoder"
+#define KEY_USE_GELU "clip.use_gelu"
+#define KEY_N_EMBD "clip.%s.embedding_length"
+#define KEY_N_FF "clip.%s.feed_forward_length"
+#define KEY_N_BLOCK "clip.%s.block_count"
+#define KEY_N_HEAD "clip.%s.attention.head_count"
+#define KEY_PROJ_DIM "clip.%s.projection_dim"
+#define KEY_TOKENS "tokenizer.ggml.tokens"
+#define KEY_N_POSITIONS "clip.text.context_length"
+#define KEY_IMAGE_SIZE "clip.vision.image_size"
+#define KEY_PATCH_SIZE "clip.vision.patch_size"
+#define KEY_IMAGE_MEAN "clip.vision.image_mean"
+#define KEY_IMAGE_STD "clip.vision.image_std"
+
+// tensor name constants
 #define TN_TOKEN_EMBD "%s.token_embd.weight"
 #define TN_POS_EMBD "%s.position_embd.weight"
 #define TN_CLASS_EMBD "v.class_embd"
@@ -51,7 +69,7 @@ static std::string format(const char * fmt, ...) {
 #define TN_TEXT_PROJ "text_projection.weight"
 #define TN_VIS_PROJ "visual_projection.weight"
 
-int get_key_idx(const gguf_context * ctx, char * key) {
+int get_key_idx(const gguf_context * ctx, const char * key) {
     int i = gguf_find_key(ctx, key);
     if (i == -1) {
         // fprintf(stderr, "key %s not found in file\n", key);
@@ -61,8 +79,8 @@ int get_key_idx(const gguf_context * ctx, char * key) {
     return i;
 }
 
-const uint32_t get_int(const gguf_context * ctx, char * key) {
-    const int i = get_key_idx(ctx, key);
+const uint32_t get_int(const gguf_context * ctx, std::string key) {
+    const int i = get_key_idx(ctx, key.c_str());
 
     return gguf_get_val_u32(ctx, i);
 }
@@ -215,6 +233,45 @@ struct clip_ctx {
     struct clip_buffer buf_compute;
 };
 
+// utility function for a workaround until https://github.com/ggerganov/ggml/issues/260 is resolved
+// after that, remove this and use the mechanism implemented in GGML directly
+size_t get_mem_req_by_size(struct clip_ctx * ctx) {
+    size_t mb = 1024 * 1024;
+    const int n_tensors = gguf_get_n_tensors(ctx->ctx_gguf);
+    const auto & vision_hparams = clip_get_vision_hparams(ctx);
+    const int n_positions =
+        ctx->has_vision_encoder ? vision_hparams->image_size * vision_hparams->image_size / vision_hparams->patch_size + 1 : 77;
+    switch (n_tensors) {
+    case 397:                    // base, two-tower
+    case 200:                    // base, vision-only
+        if (n_positions == 50) { // patch size = 32
+            return 12 * mb;
+        } else { // patch size = 16
+            return 24 * mb;
+        }
+    case 197: // base, text-only
+        return 12 * mb;
+    case 589:                     // large, two-tower
+    case 296:                     // large, vision-only
+        if (n_positions == 257) { // input image size = 224
+            return 24 * mb;
+        } else { // input image size = 336
+            return 60 * mb;
+        }
+    case 193: // large, text-only
+        return 24 * mb;
+    case 909: // huge, two-tower
+    case 456: // huge, vision-only
+        return 232 * mb;
+    case 453: // huge, text-only
+        return 120 * mb;
+    default:
+        fprintf(stderr, "%s: Unrecognized number of tensors: %d. Check if you pass the correct model file\n", __func__,
+                n_tensors);
+        exit(1);
+    }
+}
+
 // read and create ggml_context containing the tensors and their data
 struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
 
@@ -230,7 +287,7 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
     if (verbosity >= 1) {
         const int n_tensors = gguf_get_n_tensors(ctx);
         const int n_kv = gguf_get_n_kv(ctx);
-        const int ftype = get_int(ctx, "general.file_type");
+        const int ftype = get_int(ctx, KEY_FTYPE);
         const std::string ftype_str = get_ftype(ftype);
         printf("%s: GGUF version: %d\n", __func__, gguf_get_version(ctx));
         printf("%s: alignment:    %zu\n", __func__, gguf_get_alignment(ctx));
@@ -277,13 +334,13 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
 
     // model size and capabilities
     {
-        int idx = get_key_idx(ctx, "clip.has_text_encoder");
+        int idx = get_key_idx(ctx, KEY_HAS_TEXT_ENC);
         new_clip->has_text_encoder = gguf_get_val_bool(ctx, idx);
 
-        idx = get_key_idx(ctx, "clip.has_vision_encoder");
+        idx = get_key_idx(ctx, KEY_HAS_VIS_ENC);
         new_clip->has_vision_encoder = gguf_get_val_bool(ctx, idx);
 
-        idx = get_key_idx(ctx, "clip.use_gelu");
+        idx = get_key_idx(ctx, KEY_USE_GELU);
         new_clip->use_gelu = gguf_get_val_bool(ctx, idx);
 
         if (verbosity >= 1) {
@@ -342,14 +399,14 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
         // load text model
         auto & text_model = new_clip->text_model;
         auto & hparams = text_model.hparams;
-        hparams.hidden_size = get_int(ctx, "clip.text.embedding_length");
-        hparams.n_head = get_int(ctx, "clip.text.attention.head_count");
-        hparams.n_intermediate = get_int(ctx, "clip.text.feed_forward_length");
-        hparams.n_layer = get_int(ctx, "clip.text.block_count");
-        hparams.num_positions = get_int(ctx, "clip.text.context_length");
-        hparams.projection_dim = get_int(ctx, "clip.text.projection_dim");
+        hparams.hidden_size = get_int(ctx, format(KEY_N_EMBD, "text"));
+        hparams.n_head = get_int(ctx, format(KEY_N_HEAD, "text"));
+        hparams.n_intermediate = get_int(ctx, format(KEY_N_FF, "text"));
+        hparams.n_layer = get_int(ctx, format(KEY_N_BLOCK, "text"));
+        hparams.num_positions = get_int(ctx, KEY_N_POSITIONS);
+        hparams.projection_dim = get_int(ctx, format(KEY_PROJ_DIM, "text"));
 
-        const int idx_tokens = get_key_idx(ctx, "tokenizer.ggml.tokens");
+        const int idx_tokens = get_key_idx(ctx, KEY_TOKENS);
         hparams.n_vocab = gguf_get_arr_n(ctx, idx_tokens);
         auto & vocab = new_clip->vocab;
         for (int id = 0; id < hparams.n_vocab; ++id) {
@@ -401,23 +458,22 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
         // load vision model
         auto & vision_model = new_clip->vision_model;
         auto & hparams = vision_model.hparams;
-        hparams.hidden_size = get_int(ctx, "clip.vision.embedding_length");
-        hparams.n_head = get_int(ctx, "clip.vision.attention.head_count");
-        hparams.n_intermediate = get_int(ctx, "clip.vision.feed_forward_length");
-        hparams.n_layer = get_int(ctx, "clip.vision.block_count");
-        hparams.image_size = get_int(ctx, "clip.vision.image_size");
-        hparams.patch_size = get_int(ctx, "clip.vision.patch_size");
-        hparams.projection_dim = get_int(ctx, "clip.vision.projection_dim");
+        hparams.hidden_size = get_int(ctx, format(KEY_N_EMBD, "vision"));
+        hparams.n_head = get_int(ctx, format(KEY_N_HEAD, "vision"));
+        hparams.n_intermediate = get_int(ctx, format(KEY_N_FF, "vision"));
+        hparams.n_layer = get_int(ctx, format(KEY_N_BLOCK, "vision"));
+        hparams.image_size = get_int(ctx, KEY_IMAGE_SIZE);
+        hparams.patch_size = get_int(ctx, KEY_PATCH_SIZE);
+        hparams.projection_dim = get_int(ctx, format(KEY_PROJ_DIM, "vision"));
 
-        int idx_mean = get_key_idx(ctx, "clip.vision.image_mean");
-        int idx_std = get_key_idx(ctx, "clip.vision.image_std");
+        int idx_mean = get_key_idx(ctx, KEY_IMAGE_MEAN);
+        int idx_std = get_key_idx(ctx, KEY_IMAGE_STD);
         for (int i = 0; i < 3; ++i) {
             new_clip->image_mean[i] = *((float *)gguf_get_arr_data(ctx, idx_mean));
             new_clip->image_std[i] = *((float *)gguf_get_arr_data(ctx, idx_std));
         }
 
         if (verbosity >= 2) {
-
             printf("\n%s: vision model hparams\n", __func__);
             printf("image_size         %d\n", hparams.image_size);
             printf("patch_size         %d\n", hparams.patch_size);
@@ -462,36 +518,13 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
 
     new_clip->ctx_gguf = ctx;
 
-    new_clip->buf_compute.resize(24 * 1024 * 1024);
+    const size_t mem_req = get_mem_req_by_size(new_clip);
+    new_clip->buf_compute.resize(mem_req);
+    if (verbosity >= 1) {
+        printf("\n%s: %zu MB of memory allocated\n", __func__, mem_req / 1024 / 1024);
+    }
 
     return new_clip;
-}
-
-// utility function for a workaround until https://github.com/ggerganov/ggml/issues/260 is resolved
-// after that, remove this and use the mechanism implemented in GGML directly
-size_t get_mem_req_by_size(const size_t n_tensors, const int n_image_positions) {
-    size_t mb = 1024 * 1024;
-    return 24 * mb;
-    switch (n_tensors) {
-    case 397:                          // base
-        if (n_image_positions == 50) { // patch size = 32
-            return 12 * mb;
-        } else { // patch size = 16
-            return 24 * mb;
-        }
-    case 589:                           // large
-        if (n_image_positions == 257) { // input image size = 224
-            return 24 * mb;
-        } else { // input image size = 336
-            return 60 * mb;
-        }
-    case 909: // huge
-        return 232 * mb;
-    default:
-        fprintf(stderr, "%s: Unrecognized number of tensors: %zu. Check if you pass the correct model file\n", __func__,
-                n_tensors);
-        exit(1);
-    }
 }
 
 size_t get_scr_buf_req_by_size(const size_t n_tensors, const int n_positions) {
