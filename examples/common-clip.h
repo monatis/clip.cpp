@@ -27,14 +27,16 @@ struct app_params {
     int verbose;
 
     app_params()
-        : n_threads(std::min(4, static_cast<int32_t>(std::thread::hardware_concurrency()))), model("models/ggml-model-f16.bin"),
-          verbose(1) {
+        : n_threads(std::min(4, static_cast<int32_t>(std::thread::hardware_concurrency()))),
+          model("models/ggml-model-f16.gguf"), verbose(1) {
         // Initialize other fields if needed
     }
 };
 
-bool app_params_parse(int argc, char ** argv, app_params & params);
-void print_help(int argc, char ** argv, app_params & params);
+bool app_params_parse(int argc, char ** argv, app_params & params, const int min_text_arg, const int min_image_arg);
+void print_help(int argc, char ** argv, app_params & params, const int min_text_arg, const int min_image_arg);
+
+int writeNpyFile(const char * filename, const float * data, const int * shape, int ndims);
 
 // utils for debugging
 void write_floats_to_file(float * array, int size, char * filename);

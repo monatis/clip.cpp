@@ -2,6 +2,8 @@
 
 #include <cassert>
 #include <cmath>
+#include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -138,7 +140,7 @@ bool is_image_file_extension(const std::string & path) {
     return false;
 }
 
-bool app_params_parse(int argc, char ** argv, app_params & params) {
+bool app_params_parse(int argc, char ** argv, app_params & params, const int min_text_arg, const int min_image_arg) {
     for (int i = 0; i < argc; i++) {
         std::string arg = std::string(argv[i]);
         if (arg == "-m" || arg == "--model") {
@@ -152,7 +154,7 @@ bool app_params_parse(int argc, char ** argv, app_params & params) {
         } else if (arg == "-v" || arg == "--verbose") {
             params.verbose = std::stoi(argv[++i]);
         } else if (arg == "-h" || arg == "--help") {
-            print_help(argc, argv, params);
+            print_help(argc, argv, params, min_text_arg, min_image_arg);
             exit(0);
         } else {
             if (i != 0) {
@@ -161,17 +163,27 @@ bool app_params_parse(int argc, char ** argv, app_params & params) {
             }
         }
     }
-    return params.image_paths.size() >= 1 && params.texts.size() >= 1;
+    return params.image_paths.size() >= min_image_arg && params.texts.size() >= min_text_arg;
 }
 
-void print_help(int argc, char ** argv, app_params & params) {
+void print_help(int argc, char ** argv, app_params & params, const int min_text_arg, const int min_image_arg) {
     printf("Usage: %s [options]\n", argv[0]);
     printf("\nOptions:");
     printf("  -h, --help: Show this message and exit\n");
     printf("  -m <path>, --model <path>: path to model. Default: %s\n", params.model.c_str());
     printf("  -t N, --threads N: Number of threads to use for inference. Default: %d\n", params.n_threads);
-    printf("  --text <text>: Text to encode. At least one text should be specified\n");
-    printf("  --image <path>: Path to an image file. At least one image path should be specified\n");
+    printf("  --text <text>: Text to encode");
+    if (min_text_arg >= 1) {
+        printf(". At least %d text should be specified\n", min_text_arg);
+    } else {
+        printf("\n");
+    }
+    printf("  --image <path>: Path to an image file");
+    if (min_image_arg >= 1) {
+        printf(". At least one image path should be specified\n");
+    } else {
+        printf("\n");
+    }
     printf("  -v <level>, --verbose <level>: Control the level of verbosity. 0 = minimum, 2 = maximum. Default: %d\n",
            params.verbose);
 }
@@ -191,6 +203,62 @@ void write_floats_to_file(float * array, int size, char * filename) {
 
     // Close the file.
     fclose(file);
+}
+
+// Define a structure to represent the numpy header
+typedef struct {
+    uint8_t major_version;
+    uint8_t minor_version;
+    uint16_t header_len;
+    char * header[128];
+} NumpyHeader;
+
+// Function to write a numpy .npy file
+int writeNpyFile(const char * filename, const float * data, const int * shape, int ndims) {
+    if (ndims != 2) {
+        printf("Only 2-dimensional arrays are supported for now\n");
+        return 1;
+    }
+
+    FILE * file = fopen(filename, "wb");
+    if (!file) {
+        perror("Error opening file");
+        return 1;
+    }
+
+    // Create the numpy header
+    NumpyHeader header;
+    header.major_version = 1;
+    header.minor_version = 0;
+
+    // Calculate the length of the header data
+    snprintf((char *)header.header, sizeof(header.header), "{'descr': '<f4', 'fortran_order': False, 'shape': (%d, %d), }",
+             shape[0], shape[1]);
+    header.header_len = 118;
+
+    // Write the numpy header to the file
+    fwrite("\x93NUMPY", 1, 6, file);
+    fwrite(&header.major_version, 1, 1, file);
+    fwrite(&header.minor_version, 1, 1, file);
+    fwrite(&header.header_len, 2, 1, file);
+    fwrite((char *)header.header, 1, strlen((char *)header.header), file);
+    const int padding_len = 128 - (10 + strlen((char *)header.header) + 1);
+    for (int i = 0; i < padding_len; ++i) {
+        fputc(0x20, file);
+    }
+    fputc(0x0a, file);
+
+    // Write the array data (assuming little-endian format)
+    int num_elements = 1;
+    for (int i = 0; i < ndims; i++) {
+        num_elements *= shape[i];
+    }
+    fwrite(data, sizeof(float) * num_elements, 1, file);
+
+    // Clean up and close the file
+    fclose(file);
+
+    return 0;
 }
 
 // Constructor-like function
