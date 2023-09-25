@@ -17,7 +17,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-#define CLIP_DEBUG
+// #define CLIP_DEBUG
 
 static std::string format(const char * fmt, ...) {
     va_list ap;
@@ -61,10 +61,10 @@ int get_key_idx(const gguf_context * ctx, char * key) {
     return i;
 }
 
-const int get_int(const gguf_context * ctx, char * key) {
+const uint32_t get_int(const gguf_context * ctx, char * key) {
     const int i = get_key_idx(ctx, key);
 
-    return gguf_get_val_i32(ctx, i);
+    return gguf_get_val_u32(ctx, i);
 }
 
 struct ggml_tensor * get_tensor(struct ggml_context * ctx, std::string name) {
@@ -75,6 +75,34 @@ struct ggml_tensor * get_tensor(struct ggml_context * ctx, std::string name) {
     }
 
     return cur;
+}
+
+std::string get_ftype(int ftype) {
+    switch (ftype) {
+    case 0:
+        return "f32";
+        break;
+    case 1:
+        return "f16";
+        break;
+    case 2:
+        return "q4_0";
+        break;
+    case 3:
+        return "q4_1";
+        break;
+    case 6:
+        return "q5_0";
+        break;
+    case 7:
+        return "q5_1";
+        break;
+    case 8:
+        return "q8_0";
+        break;
+    default:
+        throw std::runtime_error(format("Unrecognized file type: %d\n", ftype));
+    }
 }
 
 //
@@ -137,8 +165,6 @@ struct clip_text_model {
     struct ggml_tensor * post_ln_b;
 
     struct ggml_tensor * projection;
-
-    std::map<std::string, struct ggml_tensor *> tensors;
 };
 
 struct clip_vision_model {
@@ -158,8 +184,6 @@ struct clip_vision_model {
     struct ggml_tensor * post_ln_b;
 
     struct ggml_tensor * projection;
-
-    std::map<std::string, struct ggml_tensor *> tensors;
 };
 
 // Replacement for std::vector<uint8_t> that doesn't require zero-initialization.
@@ -184,7 +208,7 @@ struct clip_ctx {
     struct clip_vocab vocab;
     float image_mean[3];
     float image_std[3];
-    int32_t use_gelu = 0;
+    bool use_gelu = false;
     int32_t ftype = 1;
     struct ggml_context * ctx;
     struct gguf_context * ctx_gguf;
@@ -203,21 +227,29 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
 
     struct gguf_context * ctx = gguf_init_from_file(fname, params);
 
-    printf("%s: version:      %d\n", __func__, gguf_get_version(ctx));
-    printf("%s: alignment:   %zu\n", __func__, gguf_get_alignment(ctx));
-    printf("%s: data offset: %zu\n", __func__, gguf_get_data_offset(ctx));
+    if (verbosity >= 1) {
+        const int n_tensors = gguf_get_n_tensors(ctx);
+        const int n_kv = gguf_get_n_kv(ctx);
+        const int ftype = get_int(ctx, "general.file_type");
+        const std::string ftype_str = get_ftype(ftype);
+        printf("%s: GGUF version: %d\n", __func__, gguf_get_version(ctx));
+        printf("%s: alignment:    %zu\n", __func__, gguf_get_alignment(ctx));
+        printf("%s: n_tensors:    %d\n", __func__, n_tensors);
+        printf("%s: n_kv:         %d\n", __func__, n_kv);
+        printf("%s: ftype:        %s\n", __func__, ftype_str.c_str());
+        printf("\n");
+    }
 
     // kv
-    if (verbosity >= 2) {
+    if (verbosity >= 3) {
         const int n_kv = gguf_get_n_kv(ctx);
-
-        printf("%s: n_kv: %d\n", __func__, n_kv);
 
         for (int i = 0; i < n_kv; ++i) {
             const char * key = gguf_get_key(ctx, i);
 
             printf("%s: kv[%d]: key = %s\n", __func__, i, key);
         }
+        printf("\n");
     }
 
     // data
@@ -234,21 +266,16 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
             size_t tensor_size = ggml_nbytes(cur);
             size_t padded_size = ggml_nbytes_pad(cur);
             ctx_size += padded_size;
-            if (verbosity >= 2) {
+            if (verbosity >= 3) {
                 printf("%s: tensor[%d]: n_dims = %d, name = %s, tensor_size=%zu, padded_size=%zu, offset=%zu\n", __func__, i,
                        cur->n_dims, cur->name, tensor_size, padded_size, offset);
             }
-        }
-
-        if (verbosity >= 1) {
-            printf("%s: ctx_meta size: %zu\n", __func__, ggml_get_mem_size(meta));
-            printf("%s: ctx_data size: %zu (%f MB)\n", __func__, ctx_size, (ctx_size / (1024.0f * 1024.0f)));
         }
     }
 
     clip_ctx * new_clip = new clip_ctx;
 
-    // model capabilities
+    // model size and capabilities
     {
         int idx = get_key_idx(ctx, "clip.has_text_encoder");
         new_clip->has_text_encoder = gguf_get_val_bool(ctx, idx);
@@ -256,8 +283,15 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
         idx = get_key_idx(ctx, "clip.has_vision_encoder");
         new_clip->has_vision_encoder = gguf_get_val_bool(ctx, idx);
 
-        printf("%s: has_text_encoder: %d\n", __func__, new_clip->has_text_encoder);
-        printf("%s: has_vision_encoder: %d\n", __func__, new_clip->has_vision_encoder);
+        idx = get_key_idx(ctx, "clip.use_gelu");
+        new_clip->use_gelu = gguf_get_val_bool(ctx, idx);
+
+        if (verbosity >= 1) {
+            printf("%s: text_encoder:   %d\n", __func__, new_clip->has_text_encoder);
+            printf("%s: vision_encoder: %d\n", __func__, new_clip->has_vision_encoder);
+            printf("%s: ctx_data size: %f MB\n", __func__, (ctx_size / 1024.0 / 1024.0));
+            printf("%s: ctx_meta size: %f MB\n", __func__, ggml_get_mem_size(meta) / 1024.0 / 1024.0);
+        }
     }
 
     // load tensors
@@ -296,6 +330,7 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
                 clip_free(new_clip);
                 return nullptr;
             }
+
             fin.read(reinterpret_cast<char *>(cur->data), ggml_nbytes(t));
         }
 
@@ -761,7 +796,7 @@ bool clip_text_encode(const clip_ctx * ctx, const int n_threads, const clip_toke
     struct ggml_context * ctx0 = ggml_init(params);
     struct ggml_cgraph gf = {};
 
-    static size_t scr0_size = get_scr_buf_req_by_size(ctx->text_model.tensors.size() + ctx->vision_model.tensors.size(), N);
+    static size_t scr0_size = get_scr_buf_req_by_size(gguf_get_n_tensors(ctx->ctx_gguf), N);
     static void * scr0 = malloc(scr0_size);
 
     struct ggml_tensor * input_ids = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, N);
@@ -994,8 +1029,7 @@ bool clip_image_batch_encode(const clip_ctx * ctx, const int n_threads, const cl
     struct ggml_context * ctx0 = ggml_init(params);
     struct ggml_cgraph gf = {};
 
-    static size_t scr0_size =
-        get_scr_buf_req_by_size(ctx->text_model.tensors.size() + ctx->vision_model.tensors.size(), num_positions);
+    static size_t scr0_size = get_scr_buf_req_by_size(gguf_get_n_tensors(ctx->ctx_gguf), num_positions);
     static void * scr0 = malloc(scr0_size);
 
     struct ggml_tensor * inp_raw = ggml_new_tensor_4d(ctx0, GGML_TYPE_F32, image_size, image_size, 3, batch_size);
@@ -1406,6 +1440,7 @@ bool clip_model_quantize(const char * fname_inp, const char * fname_out, const i
     auto ctx_out = gguf_init_empty();
     gguf_set_kv(ctx_out, ctx_src);
     gguf_set_val_u32(ctx_out, "general.quantization_version", GGML_QNT_VERSION);
+    gguf_set_val_u32(ctx_out, "general.file_type", itype);
 
     auto fout = std::ofstream(fname_out, std::ios::binary);
 

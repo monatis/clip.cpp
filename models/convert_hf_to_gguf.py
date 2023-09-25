@@ -122,35 +122,44 @@ fout = GGUFWriter(path=fname_out, arch="clip")
 
 fout.add_bool("clip.has_text_encoder", has_text_encoder)
 fout.add_bool("clip.has_vision_encoder", has_vision_encoder)
+fout.add_file_type(ftype)
+model_name = config["name_or_path"] if "name_or_path" in config else dir_model.split(os.path.sep)[-1]
+fout.add_name(model_name)
+if args.text_only:
+    fout.add_description("text-only CLIP model")
+elif args.vision_only:
+    fout.add_description("vision-only CLIP model")
+else:
+    fout.add_description("two-tower CLIP model")
 
 if has_text_encoder:
     # text_model hparams
-    fout.add_int32(k(KEY_CONTEXT_LENGTH, TEXT), t_hparams["max_position_embeddings"])
-    fout.add_int32(k(KEY_EMBEDDING_LENGTH, TEXT), t_hparams["hidden_size"])
-    fout.add_int32(k(KEY_FEED_FORWARD_LENGTH, TEXT), t_hparams["intermediate_size"])
-    fout.add_int32("clip.text.projection_dim", t_hparams.get("projection_dim", config["projection_dim"]))
-    fout.add_int32(k(KEY_ATTENTION_HEAD_COUNT, TEXT), t_hparams["num_attention_heads"])
+    fout.add_uint32(k(KEY_CONTEXT_LENGTH, TEXT), t_hparams["max_position_embeddings"])
+    fout.add_uint32(k(KEY_EMBEDDING_LENGTH, TEXT), t_hparams["hidden_size"])
+    fout.add_uint32(k(KEY_FEED_FORWARD_LENGTH, TEXT), t_hparams["intermediate_size"])
+    fout.add_uint32("clip.text.projection_dim", t_hparams.get("projection_dim", config["projection_dim"]))
+    fout.add_uint32(k(KEY_ATTENTION_HEAD_COUNT, TEXT), t_hparams["num_attention_heads"])
     fout.add_float32(k(KEY_ATTENTION_LAYERNORM_EPS, TEXT), t_hparams["layer_norm_eps"])
-    fout.add_int32(k(KEY_BLOCK_COUNT, TEXT), t_hparams["num_hidden_layers"])
+    fout.add_uint32(k(KEY_BLOCK_COUNT, TEXT), t_hparams["num_hidden_layers"])
     fout.add_token_list(tokens)
 
 if has_vision_encoder:
     # vision_model hparams
-    fout.add_int32("clip.vision.image_size", v_hparams["image_size"])
-    fout.add_int32("clip.vision.patch_size", v_hparams["patch_size"])
-    fout.add_int32(k(KEY_EMBEDDING_LENGTH, VISION), v_hparams["hidden_size"])
-    fout.add_int32(k(KEY_FEED_FORWARD_LENGTH, VISION), v_hparams["intermediate_size"])
-    fout.add_int32("clip.vision.projection_dim", v_hparams.get("projection_dim", config["projection_dim"]))
-    fout.add_int32(k(KEY_ATTENTION_HEAD_COUNT, VISION), v_hparams["num_attention_heads"])
+    fout.add_uint32("clip.vision.image_size", v_hparams["image_size"])
+    fout.add_uint32("clip.vision.patch_size", v_hparams["patch_size"])
+    fout.add_uint32(k(KEY_EMBEDDING_LENGTH, VISION), v_hparams["hidden_size"])
+    fout.add_uint32(k(KEY_FEED_FORWARD_LENGTH, VISION), v_hparams["intermediate_size"])
+    fout.add_uint32("clip.vision.projection_dim", v_hparams.get("projection_dim", config["projection_dim"]))
+    fout.add_uint32(k(KEY_ATTENTION_HEAD_COUNT, VISION), v_hparams["num_attention_heads"])
     fout.add_float32(k(KEY_ATTENTION_LAYERNORM_EPS, VISION), v_hparams["layer_norm_eps"])
-    fout.add_int32(k(KEY_BLOCK_COUNT, VISION), v_hparams["num_hidden_layers"])
+    fout.add_uint32(k(KEY_BLOCK_COUNT, VISION), v_hparams["num_hidden_layers"])
 
     image_mean = processor.image_processor.image_mean if args.image_mean is None else args.image_mean
     image_std = processor.image_processor.image_std if args.image_std is None else args.image_std
     fout.add_array("clip.vision.image_mean", image_mean)
     fout.add_array("clip.vision.image_std", image_std)
 
-use_gelu = int(v_hparams["hidden_act"] == "gelu")
+use_gelu = v_hparams["hidden_act"] == "gelu"
 fout.add_bool("clip.use_gelu", use_gelu)
 
 
