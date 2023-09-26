@@ -48,6 +48,7 @@ static std::string format(const char * fmt, ...) {
 #define KEY_N_FF "clip.%s.feed_forward_length"
 #define KEY_N_BLOCK "clip.%s.block_count"
 #define KEY_N_HEAD "clip.%s.attention.head_count"
+#define KEY_LAYER_NORM_EPS "clip.%s.attention.layer_norm_epsilon"
 #define KEY_PROJ_DIM "clip.%s.projection_dim"
 #define KEY_TOKENS "tokenizer.ggml.tokens"
 #define KEY_N_POSITIONS "clip.text.context_length"
@@ -91,10 +92,16 @@ int get_key_idx(const gguf_context * ctx, const char * key) {
     return i;
 }
 
-const uint32_t get_int(const gguf_context * ctx, std::string key) {
+const uint32_t get_u32(const gguf_context * ctx, std::string key) {
     const int i = get_key_idx(ctx, key.c_str());
 
     return gguf_get_val_u32(ctx, i);
+}
+
+const float get_f32(const gguf_context * ctx, std::string key) {
+    const int i = get_key_idx(ctx, key.c_str());
+
+    return gguf_get_val_f32(ctx, i);
 }
 
 struct ggml_tensor * get_tensor(struct ggml_context * ctx, std::string name) {
@@ -338,7 +345,7 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
     if (verbosity >= 1) {
         const int n_tensors = gguf_get_n_tensors(ctx);
         const int n_kv = gguf_get_n_kv(ctx);
-        const int ftype = get_int(ctx, KEY_FTYPE);
+        const int ftype = get_u32(ctx, KEY_FTYPE);
         const std::string ftype_str = get_ftype(ftype);
         const int idx_name = get_key_idx(ctx, KEY_NAME);
         const std::string name = gguf_get_val_str(ctx, idx_name);
@@ -457,12 +464,13 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
         // load text model
         auto & text_model = new_clip->text_model;
         auto & hparams = text_model.hparams;
-        hparams.hidden_size = get_int(ctx, format(KEY_N_EMBD, "text"));
-        hparams.n_head = get_int(ctx, format(KEY_N_HEAD, "text"));
-        hparams.n_intermediate = get_int(ctx, format(KEY_N_FF, "text"));
-        hparams.n_layer = get_int(ctx, format(KEY_N_BLOCK, "text"));
-        hparams.num_positions = get_int(ctx, KEY_N_POSITIONS);
-        hparams.projection_dim = get_int(ctx, format(KEY_PROJ_DIM, "text"));
+        hparams.hidden_size = get_u32(ctx, format(KEY_N_EMBD, "text"));
+        hparams.n_head = get_u32(ctx, format(KEY_N_HEAD, "text"));
+        hparams.n_intermediate = get_u32(ctx, format(KEY_N_FF, "text"));
+        hparams.n_layer = get_u32(ctx, format(KEY_N_BLOCK, "text"));
+        hparams.num_positions = get_u32(ctx, KEY_N_POSITIONS);
+        hparams.projection_dim = get_u32(ctx, format(KEY_PROJ_DIM, "text"));
+        hparams.eps = get_f32(ctx, format(KEY_LAYER_NORM_EPS, "text"));
 
         const int idx_tokens = get_key_idx(ctx, KEY_TOKENS);
         hparams.n_vocab = gguf_get_arr_n(ctx, idx_tokens);
@@ -516,13 +524,14 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
         // load vision model
         auto & vision_model = new_clip->vision_model;
         auto & hparams = vision_model.hparams;
-        hparams.hidden_size = get_int(ctx, format(KEY_N_EMBD, "vision"));
-        hparams.n_head = get_int(ctx, format(KEY_N_HEAD, "vision"));
-        hparams.n_intermediate = get_int(ctx, format(KEY_N_FF, "vision"));
-        hparams.n_layer = get_int(ctx, format(KEY_N_BLOCK, "vision"));
-        hparams.image_size = get_int(ctx, KEY_IMAGE_SIZE);
-        hparams.patch_size = get_int(ctx, KEY_PATCH_SIZE);
-        hparams.projection_dim = get_int(ctx, format(KEY_PROJ_DIM, "vision"));
+        hparams.hidden_size = get_u32(ctx, format(KEY_N_EMBD, "vision"));
+        hparams.n_head = get_u32(ctx, format(KEY_N_HEAD, "vision"));
+        hparams.n_intermediate = get_u32(ctx, format(KEY_N_FF, "vision"));
+        hparams.n_layer = get_u32(ctx, format(KEY_N_BLOCK, "vision"));
+        hparams.image_size = get_u32(ctx, KEY_IMAGE_SIZE);
+        hparams.patch_size = get_u32(ctx, KEY_PATCH_SIZE);
+        hparams.projection_dim = get_u32(ctx, format(KEY_PROJ_DIM, "vision"));
+        hparams.eps = get_f32(ctx, format(KEY_LAYER_NORM_EPS, "vision"));
 
         int idx_mean = get_key_idx(ctx, KEY_IMAGE_MEAN);
         int idx_std = get_key_idx(ctx, KEY_IMAGE_STD);
@@ -850,6 +859,7 @@ bool clip_text_encode(const clip_ctx * ctx, const int n_threads, const clip_toke
     const int n_layer = hparams.n_layer;
     const int n_intermediate = hparams.n_intermediate;
     const int projection_dim = hparams.projection_dim;
+    const float eps = hparams.eps;
 
     auto & buf_compute = ctx->buf_compute;
 
@@ -885,7 +895,7 @@ bool clip_text_encode(const clip_ctx * ctx, const int n_threads, const clip_toke
 
         // layernorm1
         {
-            cur = ggml_norm(ctx0, cur, 1e-5f);
+            cur = ggml_norm(ctx0, cur, eps);
 
             cur = ggml_add(ctx0, ggml_mul(ctx0, ggml_repeat(ctx0, model.layers[il].ln_1_w, cur), cur),
                            ggml_repeat(ctx0, model.layers[il].ln_1_b, cur));
@@ -935,7 +945,7 @@ bool clip_text_encode(const clip_ctx * ctx, const int n_threads, const clip_toke
 
         // layernorm2
         {
-            cur = ggml_norm(ctx0, cur, 1e-5f);
+            cur = ggml_norm(ctx0, cur, eps);
 
             cur = ggml_add(ctx0, ggml_mul(ctx0, ggml_repeat(ctx0, model.layers[il].ln_2_w, cur), cur),
                            ggml_repeat(ctx0, model.layers[il].ln_2_b, cur));
@@ -961,7 +971,7 @@ bool clip_text_encode(const clip_ctx * ctx, const int n_threads, const clip_toke
 
     // final -layer_norm
     {
-        embeddings = ggml_norm(ctx0, embeddings, 1e-5f);
+        embeddings = ggml_norm(ctx0, embeddings, eps);
 
         embeddings = ggml_add(ctx0, ggml_mul(ctx0, ggml_repeat(ctx0, model.post_ln_w, embeddings), embeddings),
                               ggml_repeat(ctx0, model.post_ln_b, embeddings));
@@ -1082,6 +1092,7 @@ bool clip_image_batch_encode(const clip_ctx * ctx, const int n_threads, const cl
     const int n_layer = hparams.n_layer;
     const int n_intermediate = hparams.n_intermediate;
     const int projection_dim = hparams.projection_dim;
+    const float eps = hparams.eps;
     int batch_size = imgs->size;
 
     auto & buf_compute = ctx->buf_compute;
@@ -1148,7 +1159,7 @@ bool clip_image_batch_encode(const clip_ctx * ctx, const int n_threads, const cl
 
     // pre-layernorm
     {
-        embeddings = ggml_norm(ctx0, embeddings, 1e-5f);
+        embeddings = ggml_norm(ctx0, embeddings, eps);
 
         embeddings = ggml_add(ctx0, ggml_mul(ctx0, ggml_repeat(ctx0, model.pre_ln_w, embeddings), embeddings),
                               ggml_repeat(ctx0, model.pre_ln_b, embeddings));
@@ -1164,7 +1175,7 @@ bool clip_image_batch_encode(const clip_ctx * ctx, const int n_threads, const cl
 
         // layernorm1
         {
-            cur = ggml_norm(ctx0, cur, 1e-5f);
+            cur = ggml_norm(ctx0, cur, eps);
 
             cur = ggml_add(ctx0, ggml_mul(ctx0, ggml_repeat(ctx0, model.layers[il].ln_1_w, cur), cur),
                            ggml_repeat(ctx0, model.layers[il].ln_1_b, cur));
@@ -1214,7 +1225,7 @@ bool clip_image_batch_encode(const clip_ctx * ctx, const int n_threads, const cl
 
         // layernorm2
         {
-            cur = ggml_norm(ctx0, cur, 1e-5f);
+            cur = ggml_norm(ctx0, cur, eps);
 
             cur = ggml_add(ctx0, ggml_mul(ctx0, ggml_repeat(ctx0, model.layers[il].ln_2_w, cur), cur),
                            ggml_repeat(ctx0, model.layers[il].ln_2_b, cur));
@@ -1247,7 +1258,7 @@ bool clip_image_batch_encode(const clip_ctx * ctx, const int n_threads, const cl
 
     // post-layernorm
     {
-        embeddings = ggml_norm(ctx0, embeddings, 1e-4f);
+        embeddings = ggml_norm(ctx0, embeddings, eps);
 
         embeddings = ggml_add(ctx0, ggml_mul(ctx0, ggml_repeat(ctx0, model.post_ln_w, embeddings), embeddings),
                               ggml_repeat(ctx0, model.post_ln_b, embeddings));

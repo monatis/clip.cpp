@@ -17,6 +17,7 @@ struct clip_text_hparams {
     int32_t projection_dim;
     int32_t n_head;
     int32_t n_layer;
+    float eps;
 };
 
 struct clip_vision_hparams {
@@ -27,13 +28,8 @@ struct clip_vision_hparams {
     int32_t projection_dim;
     int32_t n_head;
     int32_t n_layer;
+    float eps;
 };
-
-// default hparams for ViT-B/32
-#define DEFAULT_TEXT_HPARAMS                                                                                                   \
-    { 49408, 77, 512, 2048, 512, 8, 12 }
-#define DEFAULT_VISION_HPARAMS                                                                                                 \
-    { 224, 32, 768, 3072, 512, 12, 12 }
 
 typedef int32_t clip_vocab_id;
 struct clip_tokens {
