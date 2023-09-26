@@ -42,6 +42,7 @@ class ClipTextHparams(ctypes.Structure):
         ("projection_dim", ctypes.c_int32),
         ("n_head", ctypes.c_int32),
         ("n_layer", ctypes.c_int32),
+        ("eps", ctypes.c_float),
     ]
 
 
@@ -54,6 +55,7 @@ class ClipVisionHparams(ctypes.Structure):
         ("projection_dim", ctypes.c_int32),
         ("n_head", ctypes.c_int32),
         ("n_layer", ctypes.c_int32),
+        ("eps", ctypes.c_float),
     ]
 
 
