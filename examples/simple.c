@@ -1,9 +1,11 @@
+// this is a deadly simple example in C just to demonstrate usage.
+
 #include "clip.h"
 #include <stdbool.h>
 #include <stdio.h>
 
 int main() {
-    char * model_path = "../../models/openai_clip-vit-base-patch32.ggmlv0.q4_1.bin";
+    char * model_path = "../../models/openai_clip-vit-base-patch32.q4_1.gguf";
     char * img_path = "../../tests/red_apple.jpg";
     char * text = "an apple";
     int n_threads = 4;

@@ -19,11 +19,14 @@ This repo is aimed at powering useful applications based on such models on compu
 clip.cpp also has a short startup time compared to large ML frameworks, which makes it suitable for serverless deployments where the cold start is an issue.
 
 ## Hot topics
-
+-   09/27/2023: clip.cpp now uses a new model file structure in GGUF format. This is a breaking change. See bwlow for more information.
 -   09/14/2023: All functions are C-compatible now. `zsl` example is updated to match Huggingface's zero-shot behavior in the zero-shot pipeline.
 -   09/11/2023: Introduce Python bindings.
 -   07/12/2023: Batch inference support for image encoding.
 -   07/11/2023: Semantic image search [example](examples/image-search/README.md) directly in C++.
+
+## BREAKING CHANGE
+### As of 09/27/2023, clip.cpp uses a new model file structure in GGUF format. The latest commit that is compatible with older .bin files is [05f2efd8081b8695e8174dea7a82116ece2fdf63](https://github.com/monatis/clip.cpp/commit/05f2efd8081b8695e8174dea7a82116ece2fdf63). There will be no back compatibility support for older models, and you are recommended to update to the new code and model files. The new structure allows text-only and vision-only model files as well as 32-bit floating point precision, 5-bit and 8-bit quantization support in addition to the existing 16-bit floating point precision and 4-bit quantization.
 
 ## Note about image preprocessing
 
@@ -31,7 +34,7 @@ PIL uses a two-pass convolutions-based bicubic interpolation in resizing with an
 
 ## Preconverted Models
 
-Preconverted Models can be found in [HuggingFace Repositories tagged with `clip.cpp`](https://huggingface.co/models?other=clip.cpp).
+Preconverted Models can be found in [HuggingFace Repositories tagged with `clip.cpp-gguf`](https://huggingface.co/models?other=clip.cpp).
 If you want to do conversion yourself for some reason, see below for how.
 Otherwise, download a model of your choice from the link above and then feel free to jump to the building section.
 

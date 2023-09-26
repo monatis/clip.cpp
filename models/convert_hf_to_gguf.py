@@ -67,6 +67,8 @@ ap.add_argument("--text-only", action="store_true", required=False, help="Save a
 ap.add_argument("--vision-only", action="store_true", required=False, help="Save a vision-only model. It can't be used to encode texts")
 ap.add_argument("--image-mean", nargs=3, type=float, required=False, help="Override image mean values")
 ap.add_argument("--image-std", nargs=3, type=float, required=False, help="Override image std values")
+ap.add_argument("-o", "--output-dir", help="Directory to save GGUF files. Default is the original model directory", default=None)
+
 args = ap.parse_args()
 
 if args.text_only and args.vision_only:
@@ -76,7 +78,7 @@ if args.text_only and args.vision_only:
 if args.use_f32:
     print("WARNING: Weights for the convolution op is always saved in f16, as the convolution op in GGML does not support 32-bit kernel weights yet.")
 
-# output in the same directory as the model
+# output in the same directory as the model if output_dir is None
 dir_model = args.model_dir
 
 
@@ -117,7 +119,10 @@ elif args.vision_only:
 else:
     fname_middle = ""
 
-fname_out = os.path.join(dir_model, f"ggml-{fname_middle}model-{ftype_str[ftype]}.gguf")
+output_dir = args.output_dir if args.output_dir is not None else dir_model
+os.makedirs(output_dir, exist_ok=True)
+output_prefix = os.path.basename(output_dir)[4:]
+fname_out = os.path.join(output_dir, f"{output_prefix}_ggml-{fname_middle}model-{ftype_str[ftype]}.gguf")
 fout = GGUFWriter(path=fname_out, arch="clip")
 
 fout.add_bool("clip.has_text_encoder", has_text_encoder)
