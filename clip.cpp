@@ -265,21 +265,19 @@ size_t get_mem_req_by_size(struct clip_ctx * ctx) {
         } else { // patch size = 16
             return 24 * mb;
         }
-    case 197: // base, text-only
+    case 197: // base or large, text-only
         return 12 * mb;
     case 589:                     // large, two-tower
-    case 296:                     // large, vision-only
+    case 392:                     // large, vision-only
         if (n_positions == 257) { // input image size = 224
             return 24 * mb;
         } else { // input image size = 336
             return 60 * mb;
         }
-    case 193: // large, text-only
-        return 24 * mb;
     case 909: // huge, two-tower
-    case 456: // huge, vision-only
+    case 520: // huge, vision-only
         return 232 * mb;
-    case 453: // huge, text-only
+    case 389: // huge, text-only
         return 120 * mb;
     default:
         fprintf(stderr, "%s: Unrecognized number of tensors: %d. Check if you pass the correct model file\n", __func__,
@@ -314,9 +312,10 @@ size_t get_scr_buf_req_by_size(struct clip_ctx * ctx) {
             return 192 * mb;
         }
     case 909:
-    case 456:
-    case 453:
+    case 520:
         return 144 * mb;
+    case 389:
+        return 60 * mb;
     default:
         fprintf(stderr, "%s: Unrecognized number of tensors: %d. Check if you pass the correct model file\n", __func__,
                 n_tensors);
@@ -405,8 +404,8 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
         if (verbosity >= 1) {
             printf("%s: text_encoder:   %d\n", __func__, new_clip->has_text_encoder);
             printf("%s: vision_encoder: %d\n", __func__, new_clip->has_vision_encoder);
-            printf("%s: ctx_data size: %f MB\n", __func__, (ctx_size / 1024.0 / 1024.0));
-            printf("%s: ctx_meta size: %f MB\n", __func__, ggml_get_mem_size(meta) / 1024.0 / 1024.0);
+            printf("%s: model size:     %.2f MB\n", __func__, (ctx_size / 1024.0 / 1024.0));
+            printf("%s: metadata size:  %.2f MB\n", __func__, ggml_get_mem_size(meta) / 1024.0 / 1024.0);
         }
     }
 
