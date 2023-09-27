@@ -225,15 +225,15 @@ class Clip:
         Args:
         ---
             :param model_path_or_repo_id: str
-                The path to a model file
+                The path to a model file in GGUF format
                 or the name of a Hugging Face model repo.
 
             :param model_file: str | None
               The name of the model file in Hugging Face repo,
-              if not specified the first bin file from the repo is choosen.
+              if not specified the smallest .gguf file from the repo is chosen.
 
-            :param verbosity: int { 0, 1, 2 } Default = 0
-                How much verbose the model, 2 is more verbose
+            :param verbosity: int { 0, 1, 2, 3 } Default = 0
+                How much verbose the model, 3 is more verbose
 
         """
 
@@ -275,6 +275,7 @@ class Clip:
             repo_id=repo_id,
             file_name=filename,
         )
+
         return cls._find_model_path_from_dir(path, filename=filename)
 
     @classmethod
@@ -283,8 +284,9 @@ class Clip:
         files = [
             (f.size, f.rfilename)
             for f in repo_info.siblings
-            if f.rfilename.endswith(".bin")  # or f.rfilename.endswith(".gguf")
+            if f.rfilename.endswith(".gguf")
         ]
+
         return min(files)[1]
 
     @classmethod
@@ -298,9 +300,12 @@ class Clip:
             file = path.joinpath(filename).resolve()
             if not file.is_file():
                 raise ValueError(f"Model file '{filename}' not found in '{path}'")
+            
             return str(file)
-        files = glob(path.joinpath("*.bin"))  # TODO add ".gguf"
+        
+        files = glob(path.joinpath("*ggml-model-*.gguf"))
         file = min(files, key=lambda x: x[0])[1]
+
         return file.resolve().__str__()
 
     @property
