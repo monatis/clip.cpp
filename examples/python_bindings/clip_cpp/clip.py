@@ -284,7 +284,7 @@ class Clip:
         files = [
             (f.size, f.rfilename)
             for f in repo_info.siblings
-            if f.rfilename.endswith(".gguf")
+            if f.rfilename.endswith(".gguf") and "ggml-model" in f.rfilename
         ]
 
         return min(files)[1]
