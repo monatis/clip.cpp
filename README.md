@@ -126,7 +126,7 @@ usage: ./bin/quantize /path/to/ggml-model-f32.gguf /path/to/ggml-model-quantized
 For example, you can run the following to convert the model to q5_1:
 
 ```shell
-./bin/quantize ./CLIP-ViT-B-32-laion2B-s34B-b79K/ggml-model-f16.gguf ./CLIP-ViT-B-32-laion2B-s34B-b79K/ggml-model-f32.gguf 7
+./bin/quantize ./CLIP-ViT-B-32-laion2B-s34B-b79K/ggml-model-f32.gguf ./CLIP-ViT-B-32-laion2B-s34B-b79K/ggml-model-q5_1.gguf 7
 ```
 
 Now you can use `ggml-model-q5_1.gguf` just like the model in F16.
@@ -169,7 +169,7 @@ See [examples/image-search/README.md](examples/image-search/README.md) for more 
 
 4. `extract` is a tool to extract vectors to `*.npy` files in Numpy format. It is again dependency-free, i.e., no need for Numpy.
 
-CLI arguments are the same, but you can pass one or multiple `--text` and/or `--image` arguments. Either of them or a combination of both allowed.
+CLI arguments are the same as in `main` and `zsl`, but you can pass one or multiple `--text` and/or `--image` arguments. Either of them or a combination of both allowed.
 
 **Note**: Support for processing `*.txt` files and image directories is on the way.
 
