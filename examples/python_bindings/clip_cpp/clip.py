@@ -42,6 +42,7 @@ class ClipTextHparams(ctypes.Structure):
         ("projection_dim", ctypes.c_int32),
         ("n_head", ctypes.c_int32),
         ("n_layer", ctypes.c_int32),
+        ("eps", ctypes.c_float),
     ]
 
 
@@ -54,6 +55,7 @@ class ClipVisionHparams(ctypes.Structure):
         ("projection_dim", ctypes.c_int32),
         ("n_head", ctypes.c_int32),
         ("n_layer", ctypes.c_int32),
+        ("eps", ctypes.c_float),
     ]
 
 
@@ -114,8 +116,8 @@ clip_get_vision_hparams.argtypes = [ctypes.POINTER(ClipContext)]
 clip_get_vision_hparams.restype = ctypes.POINTER(ClipVisionHparams)
 
 clip_tokenize = clip_lib.clip_tokenize
-clip_tokenize.argtypes = [ctypes.POINTER(ClipContext), ctypes.c_char_p]
-clip_tokenize.restype = ClipTokens
+clip_tokenize.argtypes = [ctypes.POINTER(ClipContext), ctypes.c_char_p, ctypes.POINTER(ClipTokens)]
+clip_tokenize.restype = ctypes.c_bool
 
 clip_image_load_from_file = clip_lib.clip_image_load_from_file
 clip_image_load_from_file.argtypes = [ctypes.c_char_p, ctypes.POINTER(ClipImageU8)]
@@ -223,15 +225,15 @@ class Clip:
         Args:
         ---
             :param model_path_or_repo_id: str
-                The path to a model file
+                The path to a model file in GGUF format
                 or the name of a Hugging Face model repo.
 
             :param model_file: str | None
               The name of the model file in Hugging Face repo,
-              if not specified the first bin file from the repo is choosen.
+              if not specified the smallest .gguf file from the repo is chosen.
 
-            :param verbosity: int { 0, 1, 2 } Default = 0
-                How much verbose the model, 2 is more verbose
+            :param verbosity: int { 0, 1, 2, 3 } Default = 0
+                How much verbose the model, 3 is more verbose
 
         """
 
@@ -273,6 +275,7 @@ class Clip:
             repo_id=repo_id,
             file_name=filename,
         )
+
         return cls._find_model_path_from_dir(path, filename=filename)
 
     @classmethod
@@ -281,8 +284,9 @@ class Clip:
         files = [
             (f.size, f.rfilename)
             for f in repo_info.siblings
-            if f.rfilename.endswith(".bin")  # or f.rfilename.endswith(".gguf")
+            if f.rfilename.endswith(".gguf") and "ggml-model" in f.rfilename
         ]
+
         return min(files)[1]
 
     @classmethod
@@ -296,9 +300,12 @@ class Clip:
             file = path.joinpath(filename).resolve()
             if not file.is_file():
                 raise ValueError(f"Model file '{filename}' not found in '{path}'")
+            
             return str(file)
-        files = glob(path.joinpath("*.bin"))  # TODO add ".gguf"
+        
+        files = glob(path.joinpath("*ggml-model-*.gguf"))
         file = min(files, key=lambda x: x[0])[1]
+
         return file.resolve().__str__()
 
     @property
@@ -310,8 +317,11 @@ class Clip:
         return _struct_to_dict(clip_get_text_hparams(self.ctx).contents)
 
     def tokenize(self, text: str) -> List[int]:
-        tokens = clip_tokenize(self.ctx, text.encode("utf8"))
-        return [tokens.data[i] for i in range(tokens.size)]
+        tokens = ClipTokens()
+        if clip_tokenize(self.ctx, text.encode("utf8"), ctypes.pointer(tokens)):
+            return [tokens.data[i] for i in range(tokens.size)]
+        else:
+            raise RuntimeError("unable to tokenize text")
 
     def encode_text(
         self,

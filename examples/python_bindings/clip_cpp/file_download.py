@@ -167,7 +167,7 @@ def model_download(repo_id: str, file_name: Union[str, List[str]]) -> str:
 
 
 def get_models() -> List[Model]:
-    url = f"https://huggingface.co/api/models?filter=clip.cpp"
+    url = f"https://huggingface.co/api/models?filter=clip-cpp-gguf"
     try:
         response = urllib.request.urlopen(url)
         data = json.load(response)
@@ -185,7 +185,7 @@ def available_models():
         repo = model_info(repo_id=repo_id, files_metadata=True)
         print(f"Available models in repo {repo_id}:")
         for model in repo.siblings:
-            if model.rfilename.endswith(".bin"):
+            if model.rfilename.endswith(".gguf"):
                 name = model.rfilename
                 size = model.size / (1024 * 1024)
                 print(f"    model: {name} ({size:.2f} MB)")

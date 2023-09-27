@@ -63,7 +63,8 @@ int main(int argc, char ** argv) {
     const int64_t t_start_encode_texts = ggml_time_us();
 
     for (const auto & entry : result) {
-        auto tokens = clip_tokenize(ctx, entry.first.c_str());
+        clip_tokens tokens;
+        clip_tokenize(ctx, entry.first.c_str(), &tokens);
         if (!clip_text_encode(ctx, n_threads, &tokens, txt_vecs + label_idx * vec_dim, true)) {
             printf("%s: Could not encode the label at index %d: %s\n", __func__, label_idx, entry.first.c_str());
             return 1;

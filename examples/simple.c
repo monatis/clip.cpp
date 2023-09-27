@@ -1,9 +1,11 @@
+// this is a deadly simple example in C just to demonstrate usage.
+
 #include "clip.h"
 #include <stdbool.h>
 #include <stdio.h>
 
 int main() {
-    char * model_path = "../../models/openai_clip-vit-base-patch32.ggmlv0.q4_1.bin";
+    char * model_path = "../../models/openai_clip-vit-base-patch32.q4_1.gguf";
     char * img_path = "../../tests/red_apple.jpg";
     char * text = "an apple";
     int n_threads = 4;
@@ -40,11 +42,12 @@ int main() {
     }
 
     // Tokenize text
-    struct clip_tokens tokens = clip_tokenize(ctx, text);
+    struct clip_tokens * tokens = NULL;
+    clip_tokenize(ctx, text, tokens);
 
     // Encode text
     float txt_vec[vec_dim];
-    if (!clip_text_encode(ctx, n_threads, &tokens, txt_vec, true)) {
+    if (!clip_text_encode(ctx, n_threads, tokens, txt_vec, true)) {
         fprintf(stderr, "%s: failed to encode text\n", __func__);
         return 1;
     }

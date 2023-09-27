@@ -8,8 +8,8 @@ int main(int argc, char ** argv) {
     const int64_t t_main_start_us = ggml_time_us();
 
     app_params params;
-    if (!app_params_parse(argc, argv, params)) {
-        print_help(argc, argv, params);
+    if (!app_params_parse(argc, argv, params, 1, 1)) {
+        print_help(argc, argv, params, 1, 1);
         return 1;
     }
 
@@ -36,7 +36,11 @@ int main(int argc, char ** argv) {
     const char * text = params.texts[0].c_str();
     float score;
 
-    clip_compare_text_and_image(ctx, params.n_threads, text, &img0, &score);
+    if (!clip_compare_text_and_image(ctx, params.n_threads, text, &img0, &score)) {
+        printf("Unable to compare text and image\n");
+        clip_free(ctx);
+        return 1;
+    }
 
     const int64_t t_main_end_us = ggml_time_us();
 
@@ -51,7 +55,7 @@ int main(int argc, char ** argv) {
     }
 
     // Usage of the individual functions that make up clip_compare_text_and_image is demonstrated in the
-    // zero-shot labelling and image search examples.
+    // `extract` example.
 
     clip_free(ctx);
 

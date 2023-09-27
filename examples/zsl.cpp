@@ -5,8 +5,8 @@
 
 int main(int argc, char ** argv) {
     app_params params;
-    if (!app_params_parse(argc, argv, params)) {
-        print_help(argc, argv, params);
+    if (!app_params_parse(argc, argv, params, 2, 1)) {
+        print_help(argc, argv, params, 2, 1);
         return 1;
     }
 

@@ -17,6 +17,7 @@ struct clip_text_hparams {
     int32_t projection_dim;
     int32_t n_head;
     int32_t n_layer;
+    float eps;
 };
 
 struct clip_vision_hparams {
@@ -27,13 +28,8 @@ struct clip_vision_hparams {
     int32_t projection_dim;
     int32_t n_head;
     int32_t n_layer;
+    float eps;
 };
-
-// default hparams for ViT-B/32
-#define DEFAULT_TEXT_HPARAMS                                                                                                   \
-    { 49408, 77, 512, 2048, 512, 8, 12 }
-#define DEFAULT_VISION_HPARAMS                                                                                                 \
-    { 224, 32, 768, 3072, 512, 12, 12 }
 
 typedef int32_t clip_vocab_id;
 struct clip_tokens {
@@ -75,7 +71,7 @@ struct clip_image_f32_batch {
     size_t size;
 };
 
-struct clip_tokens clip_tokenize(const struct clip_ctx * ctx, const char * text);
+bool clip_tokenize(const struct clip_ctx * ctx, const char * text, struct clip_tokens * tokens);
 
 struct clip_image_u8 * make_clip_image_u8();
 struct clip_image_f32 * make_clip_image_f32();
@@ -100,6 +96,8 @@ float clip_similarity_score(const float * vec1, const float * vec2, const int ve
 bool softmax_with_sorting(float * arr, const int length, float * sorted_scores, int * indices);
 bool clip_zero_shot_label_image(struct clip_ctx * ctx, const int n_threads, const struct clip_image_u8 * input_img,
                                 const char ** labels, const size_t n_labels, float * scores, int * indices);
+
+bool clip_model_quantize(const char * fname_inp, const char * fname_out, const int itype);
 
 #ifdef __cplusplus
 }
