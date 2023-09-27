@@ -347,12 +347,13 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
         const int n_kv = gguf_get_n_kv(ctx);
         const int ftype = get_u32(ctx, KEY_FTYPE);
         const std::string ftype_str = get_ftype(ftype);
-        const int idx_name = get_key_idx(ctx, KEY_NAME);
-        const std::string name = gguf_get_val_str(ctx, idx_name);
         const int idx_desc = get_key_idx(ctx, KEY_DESCRIPTION);
         const std::string description = gguf_get_val_str(ctx, idx_desc);
-
-        printf("%s: model name:   %s\n", __func__, name.c_str());
+        const int idx_name = gguf_find_key(ctx, KEY_NAME);
+        if (idx_name != -1) { // make name optional temporarily as some of the uploaded models missing it due to a bug
+            const std::string name = gguf_get_val_str(ctx, idx_name);
+            printf("%s: model name:   %s\n", __func__, name.c_str());
+        }
         printf("%s: description:  %s\n", __func__, description.c_str());
         printf("%s: GGUF version: %d\n", __func__, gguf_get_version(ctx));
         printf("%s: alignment:    %zu\n", __func__, gguf_get_alignment(ctx));

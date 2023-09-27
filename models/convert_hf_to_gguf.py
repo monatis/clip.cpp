@@ -121,14 +121,14 @@ else:
 
 output_dir = args.output_dir if args.output_dir is not None else dir_model
 os.makedirs(output_dir, exist_ok=True)
-output_prefix = os.path.basename(output_dir)[4:]
+output_prefix = os.path.basename(output_dir).replace("ggml_", "")
 fname_out = os.path.join(output_dir, f"{output_prefix}_ggml-{fname_middle}model-{ftype_str[ftype]}.gguf")
 fout = GGUFWriter(path=fname_out, arch="clip")
 
 fout.add_bool("clip.has_text_encoder", has_text_encoder)
 fout.add_bool("clip.has_vision_encoder", has_vision_encoder)
 fout.add_file_type(ftype)
-model_name = config["_name_or_path"] if "_name_or_path" in config else dir_model.split(os.path.sep)[-1]
+model_name = config["_name_or_path"] if "_name_or_path" in config else os.path.basename(dir_model)
 fout.add_name(model_name)
 if args.text_only:
     fout.add_description("text-only CLIP model")
