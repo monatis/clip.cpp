@@ -16,9 +16,17 @@ It's also a part of Stable Diffusion and and the recently emerging field of larg
 This repo is aimed at powering useful applications based on such models on computation- or memory-constraint devices.
 4-bit quantized CLIP is only 85.6 MB!
 
+## Features
+
+- Dependency-free and lightweight inference thanks to [ggml](https://github.com/ggerganov/ggml.gi).
+- 4-bit, 5-bit and 8-bit quantization support.
+- Support inference with `text-only`, `vision-only` and `two-tower` model variants. It might be relevant to use a single modality in certain cases, as in encoders for large multimodal models, or building and/or searching for semantic image search.
+- Dependency free Python binding without relying any large third-party packages. No need for Numpy, TensorFlow, PyTorch, ONNX etc. In fact, nothing more than the standard Python library.
+
 clip.cpp also has a short startup time compared to large ML frameworks, which makes it suitable for serverless deployments where the cold start is an issue.
 
 ## Hot topics
+
 -   09/27/2023: clip.cpp now uses a new model file structure in GGUF format. This is a breaking change. See bwlow for more information.
 -   09/14/2023: All functions are C-compatible now. `zsl` example is updated to match Huggingface's zero-shot behavior in the zero-shot pipeline.
 -   09/11/2023: Introduce Python bindings.
@@ -26,6 +34,7 @@ clip.cpp also has a short startup time compared to large ML frameworks, which ma
 -   07/11/2023: Semantic image search [example](examples/image-search/README.md) directly in C++.
 
 ## BREAKING CHANGE
+
 ### As of 09/27/2023, clip.cpp uses a new model file structure in GGUF format. The latest commit that is compatible with older .bin files is [05f2efd8081b8695e8174dea7a82116ece2fdf63](https://github.com/monatis/clip.cpp/commit/05f2efd8081b8695e8174dea7a82116ece2fdf63). There will be no back compatibility support for older models, and you are recommended to update to the new code and model files. The new structure allows text-only and vision-only model files as well as 32-bit floating point precision, 5-bit and 8-bit quantization support in addition to the existing 16-bit floating point precision and 4-bit quantization.
 
 ## Note about image preprocessing
@@ -34,7 +43,7 @@ PIL uses a two-pass convolutions-based bicubic interpolation in resizing with an
 
 ## Preconverted Models
 
-Preconverted Models can be found in [HuggingFace Repositories tagged with `clip.cpp-gguf`](https://huggingface.co/models?other=clip.cpp).
+Preconverted Models can be found in [HuggingFace Repositories tagged with `clip-cpp-gguf`](https://huggingface.co/models?other=clip-cpp-gguf).
 If you want to do conversion yourself for some reason, see below for how.
 Otherwise, download a model of your choice from the link above and then feel free to jump to the building section.
 
@@ -64,13 +73,19 @@ cd clip.cpp/models
 pip install -r requirements.txt
 ```
 
-4. Use `models/convert_hf_to_ggml.py` to convert it to GGML format:
+4. Use `models/convert_hf_to_gguf.py` to convert it to GGUF format:
 
 ```shell
-python convert_hf_to_ggml.py ../../CLIP-ViT-B-32-laion2B-s34B-b79K 1
+python convert_hf_to_gguf.py ../../CLIP-ViT-B-32-laion2B-s34B-b79K
 ```
 
-The output `ggml-model-f16.bin` file is in the model directory specified in the command above.
+The output `CLIP-ViT-B-32-laion2B-s34B-b79K_ggml-model-f16.bin` file is in the model directory specified in the command above.
+
+To see other options that you can use with the conversion script, run:
+
+```shell
+python convert_hf_to_gguf.py --help
+```
 
 ## Building
 
@@ -95,26 +110,30 @@ I couldn't reproduce it on my Macbook M2 pro so cannot help further. If you know
 
 ## Quantization
 
-`clip.cpp` currently supports q4_0 and q4_1 quantization types.
-You can quantize a model in F16 to one of these types by using the `./bin/quantize` binary.
+`clip.cpp` supports q4_0, q4_1, q5_0, q5_1 and q8_0 quantization types.
+You can quantize a model in f32 (recommended) or f16 to one of these types by using the `./bin/quantize` binary. 
+
 
 ```
-usage: ./bin/quantize /path/to/ggml-model-f16.bin /path/to/ggml-model-quantized.bin type
-  type = 2 - q4_0
-  type = 3 - q4_1
+usage: ./bin/quantize /path/to/ggml-model-f32.gguf /path/to/ggml-model-quantized.gguf type                              
+  type = 2 - q4_0                                                                                                       
+  type = 3 - q4_1                                                                                                       
+  type = 6 - q5_0                                                                                                       
+  type = 7 - q5_1                                                                                                       
+  type = 8 - q8_0                                                                                                       
 ```
 
-For example, you can run the following to convert the model to q4_0:
+For example, you can run the following to convert the model to q5_1:
 
 ```shell
-./bin/quantize ./CLIP-ViT-B-32-laion2B-s34B-b79K/ggml-model-f16.bin ./CLIP-ViT-B-32-laion2B-s34B-b79K/ggml-model-q4_0.bin 2
+./bin/quantize ./CLIP-ViT-B-32-laion2B-s34B-b79K/ggml-model-f16.gguf ./CLIP-ViT-B-32-laion2B-s34B-b79K/ggml-model-f32.gguf 7
 ```
 
-Now you can use `ggml-model-q4_0.bin` just like the model in F16.
+Now you can use `ggml-model-q5_1.gguf` just like the model in F16.
 
 ## Usage
 
-Currently we have three examples: `main`, `zsl` and `image-search`.
+Currently we have 4 examples: `main`, `zsl` and `image-search`.
 
 1. `main` is just for demonstrating the usage of API and optionally print out some verbose timings. It simply calculates the similarity between one image and one text passed as CLI args.
 
@@ -122,7 +141,7 @@ Currently we have three examples: `main`, `zsl` and `image-search`.
 Usage: ./bin/main [options]
 
 Options:  -h, --help: Show this message and exit
-  -m <path>, --model <path>: path to model. Default: models/ggml-model-f16.bin
+  -m <path>, --model <path>: path to model. Default: models/ggml-model-f16.gguf
   -t N, --threads N: Number of threads to use for inference. Default: 4
   --text <text>: Text to encode. At least one text should be specified
   --image <path>: Path to an image file. At least one image path should be specified
@@ -136,7 +155,7 @@ Options:  -h, --help: Show this message and exit
 3. `image-search` is an example for semantic image search with [USearch](https://github.com/unum-cloud/usearch/).
    You must enable `CLIP_BUILD_IMAGE_SEARCH` option to compile it, and the dependency will be automatically fetched by cmake:
 
-```sh
+```shell
 mkdir build
 
 cd build
@@ -148,6 +167,12 @@ make
 
 See [examples/image-search/README.md](examples/image-search/README.md) for more info and usage.
 
+4. `extract` is a tool to extract vectors to `*.npy` files in Numpy format. It is again dependency-free, i.e., no need for Numpy.
+
+CLI arguments are the same, but you can pass one or multiple `--text` and/or `--image` arguments. Either of them or a combination of both allowed.
+
+**Note**: Support for processing `*.txt` files and image directories is on the way.
+
 ## Python bindings
 
 You can use clip.cpp in Python with no third-party libraries (no dependencies other than standard Python libraries).
@@ -155,7 +180,7 @@ It uses `ctypes` to load a dynamically linked library (DLL) to interface the imp
 
 If you are on an X64 Linux distribution, you can simply Pip-install it with AVX2 support:
 
-```sh
+```shell
 pip install clip_cpp
 ```
 
@@ -169,7 +194,7 @@ you can build it from source.
 
 All you need is to compile with `-DBUILD_SHARED_LIBS=ON` option to get the required DLL.
 
-```sh
+```shell
 mkdir build
 
 cd build
@@ -195,10 +220,7 @@ num_images_per_dir: maximum number of images to read from each one of subdirecto
 output_file: optional. if specified, dump the output to this file instead of stdout
 ```
 
-See [tests/README.md](tests/README.md) for more infor about benchmarking.
+See [tests/README.md](tests/README.md) for more info about benchmarking.
 
 ## Future Work
-
--   [ ] Support `text-only`, `image-only` and `both` (current) options when exporting, and modify model loading logic accordingly. It might be relevant to use a single modality in certain cases, as in large multimodal models, or building and/or searching for semantic image search.
--   [ ] Seperate memory buffers for text and image models, as their memory requirements are different.
 -   [ ] Implement proper bicubic interpolation (PIL uses a convolutions-based algorithm, and it's more stable than affine transformations).

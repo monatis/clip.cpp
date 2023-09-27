@@ -28,7 +28,7 @@ if [ ! -d "$main_directory" ]; then
 fi
 
 # Iterate over immediate subdirectories starting with 'ggml_'
-for subdirectory in "$main_directory"/ggml_*; do
+for subdirectory in "$main_directory"/ggmlq_*; do
   if [ -d "$subdirectory" ]; then
     echo "Processing subdirectory: $subdirectory"
     
