@@ -6,3 +6,4 @@ models/*.bin
 *.so
 __pycache__
 dist
+*.gguf
