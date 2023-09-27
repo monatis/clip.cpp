@@ -76,7 +76,7 @@ pip install -r requirements.txt
 4. Use `models/convert_hf_to_gguf.py` to convert it to GGUF format:
 
 ```shell
-python convert_hf_to_gguf.py ../../CLIP-ViT-B-32-laion2B-s34B-b79K
+python convert_hf_to_gguf.py -m ../../CLIP-ViT-B-32-laion2B-s34B-b79K
 ```
 
 The output `CLIP-ViT-B-32-laion2B-s34B-b79K_ggml-model-f16.bin` file is in the model directory specified in the command above.
