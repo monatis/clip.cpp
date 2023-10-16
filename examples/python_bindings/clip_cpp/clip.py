@@ -16,7 +16,7 @@ def find_library(name):
         return f"./lib{name}.so"
     elif os_name == "Windows":
         return f"{name}.dll"
-    elif os_name == "Mac":
+    elif os_name == "Darwin":
         return f"lib{name}.dylib"
 
 
