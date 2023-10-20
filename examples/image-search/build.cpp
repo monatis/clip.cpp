@@ -90,11 +90,11 @@ int main(int argc, char ** argv) {
 
     // search for images in path and write embedding to database
     for (const auto & base_dir : params.image_directories) {
-        fprintf(stdout, "%s: starting base dir scan of '%s'\n", __func__, base_dir.c_str());
+        printf("%s: starting base dir scan of '%s'\n", __func__, base_dir.c_str());
         auto results = get_dir_keyed_files(base_dir, 0);
 
         for (auto & entry : results) {
-            printf("\n%s: processing %d files in '%s'\n", __func__, entry.second.size(), entry.first.c_str());
+            printf("\n%s: processing %zu files in '%s'\n", __func__, entry.second.size(), entry.first.c_str());
 
             size_t n_batched = (entry.second.size() / batch_size) * batch_size;
             img_inputs.resize(batch_size);
