@@ -13,7 +13,7 @@ struct my_app_params {
 
 void my_print_help(int argc, char ** argv, my_app_params & params) {
     printf("Usage: %s [options] dir/with/pictures [more/dirs]\n", argv[0]);
-    printf("\nOptions:");
+    printf("\nOptions:\n");
     printf("  -h, --help: Show this message and exit\n");
     printf("  -m <path>, --model <path>: path to model. Default: %s\n", params.model.c_str());
     printf("  -t N, --threads N: Number of threads to use for inference. Default: %d\n", params.n_threads);
