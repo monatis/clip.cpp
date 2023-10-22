@@ -13,7 +13,7 @@ struct my_app_params {
 
 void my_print_help(int argc, char ** argv, my_app_params & params) {
     printf("Usage: %s [options] dir/with/pictures [more/dirs]\n", argv[0]);
-    printf("\nOptions:");
+    printf("\nOptions:\n");
     printf("  -h, --help: Show this message and exit\n");
     printf("  -m <path>, --model <path>: path to model. Default: %s\n", params.model.c_str());
     printf("  -t N, --threads N: Number of threads to use for inference. Default: %d\n", params.n_threads);
@@ -90,11 +90,11 @@ int main(int argc, char ** argv) {
 
     // search for images in path and write embedding to database
     for (const auto & base_dir : params.image_directories) {
-        fprintf(stdout, "%s: starting base dir scan of '%s'\n", __func__, base_dir.c_str());
+        printf("%s: starting base dir scan of '%s'\n", __func__, base_dir.c_str());
         auto results = get_dir_keyed_files(base_dir, 0);
 
         for (auto & entry : results) {
-            printf("\n%s: processing %d files in '%s'\n", __func__, entry.second.size(), entry.first.c_str());
+            printf("\n%s: processing %zu files in '%s'\n", __func__, entry.second.size(), entry.first.c_str());
 
             size_t n_batched = (entry.second.size() / batch_size) * batch_size;
             img_inputs.resize(batch_size);
