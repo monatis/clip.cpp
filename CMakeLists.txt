@@ -271,7 +271,7 @@ if (BUILD_SHARED_LIBS)
     LIBRARY DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/examples/python_bindings/clip_cpp)
 endif()
 
-add_subdirectory(models)
+# add_subdirectory(models)
 
 if (CLIP_BUILD_EXAMPLES)
     add_subdirectory(examples)
