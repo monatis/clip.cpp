@@ -60,6 +60,10 @@ option(CLIP_OPENBLAS               "CLIP: use OpenBLAS"                         
 # Compile flags
 #
 
+if (CLIP_STATIC)
+    add_compile_definitions(STB_IMAGE_STATIC)
+endif()
+
 set(CMAKE_CXX_STANDARD_REQUIRED true)
 set(CMAKE_C_STANDARD_REQUIRED true)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
