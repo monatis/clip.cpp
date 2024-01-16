@@ -720,50 +720,68 @@ bool clip_image_preprocess(const clip_ctx * ctx, const clip_image_u8 * img, clip
     res->size = 3 * nx2 * ny2;
     res->data = new float[res->size]();
 
-    const float scale = std::max(nx, ny) / (float)ctx->vision_model.hparams.image_size;
-
-    const int nx3 = int(nx / scale + 0.5f);
-    const int ny3 = int(ny / scale + 0.5f);
-
     const auto & m3 = ctx->image_mean; // {0.48145466f, 0.4578275f, 0.40821073f};
     const auto & s3 = ctx->image_std;  // {0.26862954f, 0.26130258f, 0.27577711f};
 
-    for (int y = 0; y < ny3; y++) {
-        for (int x = 0; x < nx3; x++) {
+    auto w_scale = 0.; 
+    auto h_scale = 0.; 
+    if (nx2 != 0) {
+        w_scale = nx / nx2;
+    }
+    if (ny2 != 0) {
+        h_scale = ny / ny2;
+    }
+
+    for (int i = 0; i < ny2; i++) {
+        for (int j = 0; j < nx2; j++) {
+            auto x = i * h_scale;
+            auto y = j * w_scale;
+
+            auto x_floor = std::floor(x);
+            auto x_ceil = std::min(ny - 1., std::ceil(x));
+            auto y_floor = std::floor(y);
+            auto y_ceil = std::min(nx - 1., std::ceil(y));
+
             for (int c = 0; c < 3; c++) {
-                // linear interpolation
-                const float sx = (x + 0.5f) * scale - 0.5f;
-                const float sy = (y + 0.5f) * scale - 0.5f;
+                float q;
+                if ((x_ceil == x_floor) && (y_ceil == y_floor)) {
+                    auto idx = 3 * ((int)x * (int)nx + (int)y) + c;
+                    q = img->data[idx];
+                } else if (x_ceil == x_floor) {
+                    auto idx1 = 3 * ((int)x * (int)nx + (int)y_floor) + c;
+                    auto idx2 = 3 * ((int)x * (int)nx + (int)y_ceil) + c;
 
-                const int x0 = std::max(0, (int)std::floor(sx));
-                const int y0 = std::max(0, (int)std::floor(sy));
+                    float q1 = img->data[idx1];
+                    float q2 = img->data[idx2];
 
-                const int x1 = std::min(x0 + 1, nx - 1);
-                const int y1 = std::min(y0 + 1, ny - 1);
+                    q = q1 * (y_ceil - y) + q2 * (y - y_floor);
+                } else if (y_ceil == y_floor) {
+                    auto idx1 = 3 * ((int)x_floor * (int)nx + (int)y) + c;
+                    auto idx2 = 3 * ((int)x_ceil * (int)nx + (int)y) + c;
 
-                const float dx = sx - x0;
-                const float dy = sy - y0;
+                    float q1 = img->data[idx1];
+                    float q2 = img->data[idx2];
 
-                const int j00 = 3 * (y0 * nx + x0) + c;
-                const int j01 = 3 * (y0 * nx + x1) + c;
-                const int j10 = 3 * (y1 * nx + x0) + c;
-                const int j11 = 3 * (y1 * nx + x1) + c;
+                    q = (q1 * (x_ceil - x)) + (q2	 * (x - x_floor));
+                } else {
+                    auto idx1 = 3 * ((int)x_floor * (int)nx + (int)y_floor) + c;
+                    auto idx2 = 3 * ((int)x_ceil * (int)nx + (int)y_floor) + c;
+                    auto idx3 = 3 * ((int)x_floor * (int)nx + (int)y_ceil) + c;
+                    auto idx4 = 3 * ((int)x_ceil * (int)nx + (int)y_ceil) + c;
 
-                const float v00 = img->data[j00];
-                const float v01 = img->data[j01];
-                const float v10 = img->data[j10];
-                const float v11 = img->data[j11];
+                    const float v1 = img->data[idx1];
+                    const float v2 = img->data[idx2];
+                    const float v3 = img->data[idx3];
+                    const float v4 = img->data[idx4];
 
-                const float v0 = v00 * (1.0f - dx) + v01 * dx;
-                const float v1 = v10 * (1.0f - dx) + v11 * dx;
+                    auto q1 = v1 * (x_ceil - x) + v2 * (x - x_floor);
+                    auto q2 = v3 * (x_ceil - x) + v4 * (x - x_floor);
 
-                const float v = v0 * (1.0f - dy) + v1 * dy;
+                    q = q1 * (y_ceil - y) + q2 * (y - y_floor);
+                }
 
-                const uint8_t v2 = std::min(std::max(std::round(v), 0.0f), 255.0f);
-
-                const int i = 3 * (y * nx3 + x) + c;
-
-                res->data[i] = ((float(v2) / 255.0f) - m3[c]) / s3[c];
+                auto idx = 3 * ((int)i * (int)nx2 + (int)j) + c;
+                res->data[idx] = ((q / 255.0f) - m3[c]) / s3[c];
             }
         }
     }
