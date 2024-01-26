@@ -77,6 +77,13 @@ bool clip_tokenize(const struct clip_ctx * ctx, const char * text, struct clip_t
 
 struct clip_image_u8 * make_clip_image_u8();
 struct clip_image_f32 * make_clip_image_f32();
+
+void clean_clip_image_u8(clip_image_u8 * img);
+void clean_clip_image_f32(clip_image_f32 * res);
+
+void delete_clip_image_u8(clip_image_u8 * img);
+void delete_clip_image_f32(clip_image_f32 * res);
+
 bool clip_image_load_from_file(const char * fname, struct clip_image_u8 * img);
 bool clip_image_preprocess(const struct clip_ctx * ctx, const struct clip_image_u8 * img, struct clip_image_f32 * res);
 

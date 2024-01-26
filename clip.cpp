@@ -682,6 +682,28 @@ clip_image_u8 * make_clip_image_u8() { return new clip_image_u8(); }
 
 clip_image_f32 * make_clip_image_f32() { return new clip_image_f32(); }
 
+void clean_clip_image_u8(clip_image_u8* img) {
+    if (img->data){
+	delete[] img->data;
+    }
+}
+
+void clean_clip_image_f32(clip_image_f32* res) {
+    if (res->data){
+	delete[] res->data;
+    }
+}
+
+void delete_clip_image_u8(clip_image_u8* img) {
+    clean_clip_image_u8(img);
+    delete img;
+}
+
+void delete_clip_image_f32(clip_image_f32* res) {
+    clean_clip_image_f32(res);
+    delete res;
+}
+
 bool clip_image_load_from_file(const char * fname, clip_image_u8 * img) {
     int nx, ny, nc;
     auto data = stbi_load(fname, &nx, &ny, &nc, 3);
