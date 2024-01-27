@@ -685,12 +685,14 @@ clip_image_f32 * clip_image_f32_make() { return new clip_image_f32(); }
 void clip_image_u8_clean(clip_image_u8* img) {
     if (img->data){
 	delete[] img->data;
+	img->data = NULL;
     }
 }
 
 void clip_image_f32_clean(clip_image_f32* res) {
     if (res->data){
 	delete[] res->data;
+	res->data = NULL;
     }
 }
 
