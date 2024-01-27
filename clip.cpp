@@ -678,29 +678,29 @@ bool clip_tokenize(const clip_ctx * ctx, const char * text, struct clip_tokens *
     return true;
 }
 
-clip_image_u8 * make_clip_image_u8() { return new clip_image_u8(); }
+clip_image_u8 * clip_image_u8_make() { return new clip_image_u8(); }
 
-clip_image_f32 * make_clip_image_f32() { return new clip_image_f32(); }
+clip_image_f32 * clip_image_f32_make() { return new clip_image_f32(); }
 
-void clean_clip_image_u8(clip_image_u8* img) {
+void clip_image_u8_clean(clip_image_u8* img) {
     if (img->data){
 	delete[] img->data;
     }
 }
 
-void clean_clip_image_f32(clip_image_f32* res) {
+void clip_image_f32_clean(clip_image_f32* res) {
     if (res->data){
 	delete[] res->data;
     }
 }
 
-void delete_clip_image_u8(clip_image_u8* img) {
-    clean_clip_image_u8(img);
+void clip_image_u8_free(clip_image_u8* img) {
+    clip_image_u8_clean(img);
     delete img;
 }
 
-void delete_clip_image_f32(clip_image_f32* res) {
-    clean_clip_image_f32(res);
+void clip_image_f32_free(clip_image_f32* res) {
+    clip_image_f32_clean(res);
     delete res;
 }
 

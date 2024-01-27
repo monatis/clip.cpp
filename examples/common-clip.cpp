@@ -262,7 +262,7 @@ int writeNpyFile(const char * filename, const float * data, const int * shape, i
 }
 
 // Constructor-like function
-struct clip_image_u8_batch make_clip_image_u8_batch(std::vector<clip_image_u8> & images) {
+struct clip_image_u8_batch clip_image_u8_batch_make(std::vector<clip_image_u8> & images) {
     struct clip_image_u8_batch batch;
     batch.data = images.data();
     batch.size = images.size();
@@ -270,7 +270,7 @@ struct clip_image_u8_batch make_clip_image_u8_batch(std::vector<clip_image_u8> &
 }
 
 // Constructor-like function
-struct clip_image_f32_batch make_clip_image_f32_batch(std::vector<clip_image_f32> & images) {
+struct clip_image_f32_batch clip_image_f32_batch_make(std::vector<clip_image_f32> & images) {
     struct clip_image_f32_batch batch;
     batch.data = images.data();
     batch.size = images.size();
