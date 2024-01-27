@@ -27,6 +27,7 @@ clip.cpp also has a short startup time compared to large ML frameworks, which ma
 
 ## Hot topics
 
+-   01/27/2024: Clojure bindings available, [clip.clj](https://github.com/phronmophobic/clip.clj).
 -   09/27/2023: clip.cpp now uses a new model file structure in GGUF format. This is a breaking change. See bwlow for more information.
 -   09/14/2023: All functions are C-compatible now. `zsl` example is updated to match Huggingface's zero-shot behavior in the zero-shot pipeline.
 -   09/11/2023: Introduce Python bindings.
