@@ -21,14 +21,14 @@ int main() {
     int vec_dim = clip_get_vision_hparams(ctx)->projection_dim;
 
     // Load image from disk
-    struct clip_image_u8 * img0 = make_clip_image_u8();
+    struct clip_image_u8 * img0 = clip_image_u8_make();
     if (!clip_image_load_from_file(img_path, img0)) {
         fprintf(stderr, "%s: failed to load image from '%s'\n", __func__, img_path);
         return 1;
     }
 
     // Preprocess image
-    struct clip_image_f32 * img_res = make_clip_image_f32();
+    struct clip_image_f32 * img_res = clip_image_f32_make();
     if (!clip_image_preprocess(ctx, img0, img_res)) {
         fprintf(stderr, "%s: failed to preprocess image\n", __func__);
         return 1;

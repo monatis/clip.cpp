@@ -110,8 +110,8 @@ int main(int argc, char ** argv) {
                 }
             }
 
-            auto img_inputs_batch = make_clip_image_u8_batch(img_inputs);
-            auto imgs_resized_batch = make_clip_image_f32_batch(imgs_resized);
+            auto img_inputs_batch = clip_image_u8_batch_make(img_inputs);
+            auto imgs_resized_batch = clip_image_f32_batch_make(imgs_resized);
 
             clip_image_batch_preprocess(ctx, n_threads, &img_inputs_batch, &imgs_resized_batch);
 

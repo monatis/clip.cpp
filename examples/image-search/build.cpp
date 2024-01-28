@@ -169,8 +169,8 @@ int main(int argc, char ** argv) {
                     fflush(stdout);
                 }
 
-                auto img_inputs_batch = make_clip_image_u8_batch(img_inputs);
-                auto imgs_resized_batch = make_clip_image_f32_batch(imgs_resized);
+                auto img_inputs_batch = clip_image_u8_batch_make(img_inputs);
+                auto imgs_resized_batch = clip_image_f32_batch_make(imgs_resized);
 
                 clip_image_batch_preprocess(clip_ctx, params.n_threads, &img_inputs_batch, &imgs_resized_batch);
                 clip_image_batch_encode(clip_ctx, params.n_threads, &imgs_resized_batch, vec.data(), true);
