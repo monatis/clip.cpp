@@ -802,16 +802,29 @@ typedef struct {
     const clip_ctx * ctx;
 } ImageData;
 
+// Structure to hold the range of images to be processed by a thread
+// closed interval
+typedef struct {
+    ImageData* start;
+    ImageData* end;
+} ImageDataRange;
+
 // Function to preprocess a single image in a thread
 void * preprocess_image(void * arg) {
-    ImageData * imageData = static_cast<ImageData *>(arg);
-    const clip_image_u8 * input = imageData->input;
-    clip_image_f32 * resized = imageData->resized;
-    const clip_ctx * ctx = imageData->ctx;
+    ImageDataRange * imageDataRange = static_cast<ImageDataRange *>(arg);
 
-    // Call the original preprocess function on the image
-    clip_image_preprocess(ctx, input, resized);
+    ImageData * imageData_start = imageDataRange->start;
+    ImageData * imageData_end = imageDataRange->end;
 
+    for (ImageData * imageData = imageData_start; imageData <= imageData_end; imageData++) {
+        const clip_image_u8 * input = imageData->input;
+        clip_image_f32 * resized = imageData->resized; 
+        const clip_ctx * ctx = imageData->ctx;
+
+        // Call the original preprocess function on the image
+        clip_image_preprocess(ctx, input, resized); 
+    }
+    
     pthread_exit(NULL);
 }
 
@@ -836,7 +849,8 @@ void clip_image_batch_preprocess(const clip_ctx * ctx, const int n_threads, cons
 
         std::vector<pthread_t> threads(num_threads);
         std::vector<ImageData> imageData(img_inputs->size);
-
+        ImageDataRange* imageDataRange = new ImageDataRange[num_threads]();
+        
         for (t = 0; t < num_threads; t++) {
             int start_index = t * images_per_thread;
             int end_index = (t == num_threads - 1) ? img_inputs->size : start_index + images_per_thread;
@@ -849,7 +863,8 @@ void clip_image_batch_preprocess(const clip_ctx * ctx, const int n_threads, cons
             }
 
             // Create a thread for each batch of images
-            pthread_create(&threads[t], NULL, preprocess_image, static_cast<void *>(&imageData[start_index]));
+            imageDataRange[t] = {&imageData[start_index], &imageData[end_index - 1]};
+            pthread_create(&threads[t], NULL, preprocess_image, static_cast<void *>(&imageDataRange[t]));
         }
 
         // Wait for all threads to finish
