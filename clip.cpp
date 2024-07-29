@@ -341,6 +341,7 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
     };
 
     struct gguf_context * ctx = gguf_init_from_file(fname, params);
+    if ( !ctx ){ return NULL; };
 
     if (verbosity >= 1) {
         const int n_tensors = gguf_get_n_tensors(ctx);
