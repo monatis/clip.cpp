@@ -18,7 +18,7 @@ This repo is aimed at powering useful applications based on such models on compu
 
 ## Features
 
-- Dependency-free and lightweight inference thanks to [ggml](https://github.com/ggerganov/ggml.gi).
+- Dependency-free and lightweight inference thanks to [ggml](https://github.com/ggerganov/ggml.git).
 - 4-bit, 5-bit and 8-bit quantization support.
 - Support inference with `text-only`, `vision-only` and `two-tower` model variants. It might be relevant to use a single modality in certain cases, as in encoders for large multimodal models, or building and/or searching for semantic image search.
 - Dependency free Python binding without relying any large third-party packages. No need for Numpy, TensorFlow, PyTorch, ONNX etc. In fact, nothing more than the standard Python library.
