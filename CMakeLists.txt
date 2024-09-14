@@ -180,7 +180,12 @@ if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm" OR ${CMAKE_SYSTEM_PROCESSOR} MATCHES
         # TODO: arm msvc?
     else()
         if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
-            add_compile_options(-mcpu=native)
+            # Check CLIP_NATIVE here to add -mcpu=native flag
+            # Without this check, Android NDK complains that '-mcpu=native'
+            # is not supported even after setting -DCLIP_NATIVE=Off
+            if (CLIP_NATIVE)
+                add_compile_options(-mcpu=native)
+            endif()
         endif()
         # TODO: armv6,7,8 version specific flags
     endif()

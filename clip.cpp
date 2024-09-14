@@ -536,9 +536,13 @@ struct clip_ctx * clip_model_load(const char * fname, const int verbosity = 1) {
 
         int idx_mean = get_key_idx(ctx, KEY_IMAGE_MEAN);
         int idx_std = get_key_idx(ctx, KEY_IMAGE_STD);
+
+        // `gguf_get_arr_data(ctx, idx_mean) + i` is needed here, to access all elements from 
+        // entities with ids `idx_mean` and `idx_std`. 
+        // See issue https://github.com/monatis/clip.cpp/issues/99
         for (int i = 0; i < 3; ++i) {
-            new_clip->image_mean[i] = *((float *)gguf_get_arr_data(ctx, idx_mean));
-            new_clip->image_std[i] = *((float *)gguf_get_arr_data(ctx, idx_std));
+            new_clip->image_mean[i] = *((float *)gguf_get_arr_data(ctx, idx_mean) + i);
+            new_clip->image_std[i] = *((float *)gguf_get_arr_data(ctx, idx_std) + i);
         }
 
         if (verbosity >= 2) {
