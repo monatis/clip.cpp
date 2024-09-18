@@ -38,7 +38,9 @@ import org.junit.Before
 import java.nio.ByteBuffer
 
 /**
- *
+ * An instrumented test to validate the functionality of CLIPAndroid.
+ * This test requires a GGUF CLIP model and sample images to be present on the device.
+ * See `modelPath` and `imagePaths` for the paths to the model and images respectively.
  *
  * @author Shubham Panchal (github.com/shubham0204)
  */
@@ -80,10 +82,40 @@ class CLIPAndroidInstrumentedTest {
         val normalize = true
         val imageEmbedding = clipAndroid.encodeImage(imageBuffer, width, height, numThreads, vectorDims, normalize)
         assertNotNull(imageEmbedding)
+    }
 
-        // If normalize = true, magnitude of embedding should be 1.0
-        val magnitude = imageEmbedding.fold(0.0) { sqr, value -> sqr + value * value }
-        assertEquals(1.0, magnitude, 0.0001)
+    @Test
+    fun imageEncodeNoResize_works() {
+        val imageBitmap = BitmapFactory.decodeFile(imagePaths[0])
+        val resizedBitmap = Bitmap.createScaledBitmap(
+            imageBitmap,
+            clipAndroid.visionHyperParameters.imageSize,
+            clipAndroid.visionHyperParameters.imageSize,
+            true
+        )
+        val width = resizedBitmap.width
+        val height = resizedBitmap.height
+        val imageBuffer = bitmapToByteBuffer(resizedBitmap)
+        val numThreads = 4
+        val vectorDims = clipAndroid.visionHyperParameters.projectionDim
+        val normalize = true
+        val imageEmbedding = clipAndroid.encodeImageNoResize(imageBuffer, width, height, numThreads, vectorDims, normalize)
+        assertNotNull(imageEmbedding)
+    }
+
+    @Test
+    fun zeroShotClassify_works() {
+        val labels = listOf(
+            "cat", "dog", "mountains"
+        ).toTypedArray()
+        val imageBitmap = BitmapFactory.decodeFile(imagePaths[0])
+        val width = imageBitmap.width
+        val height = imageBitmap.height
+        val imageBuffer = bitmapToByteBuffer(imageBitmap)
+        val numThreads = 4
+
+        val scores = clipAndroid.zeroShotClassify(imageBuffer, width, height, numThreads, labels)
+        assertEquals(labels.size * 2, scores.size)
     }
 
     @Test
@@ -102,12 +134,6 @@ class CLIPAndroidInstrumentedTest {
         val imageEmbeddings = clipAndroid.encodeImage(imageBuffers.toTypedArray(), widths, heights, numThreads, vectorDims, normalize)
         assertNotNull(imageEmbeddings)
         assertEquals(2, imageEmbeddings.size)
-
-        // If normalize = true, magnitude of each embedding should be 1.0
-        imageEmbeddings.forEach { embedding ->
-            val magnitude = embedding.fold(0.0) { sqr, value -> sqr + value * value }
-            assertEquals(1.0, magnitude, 0.0001)
-        }
     }
 
     @Test

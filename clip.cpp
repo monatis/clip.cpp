@@ -799,6 +799,35 @@ bool clip_image_preprocess(const clip_ctx * ctx, const clip_image_u8 * img, clip
     return true;
 }
 
+bool clip_image_preprocess_no_resize(const clip_ctx * ctx, const clip_image_u8 * img, clip_image_f32 * res) {
+    if (!ctx->has_vision_encoder) {
+        printf("This gguf file seems to have no vision encoder\n");
+        return false;
+    }
+    const int nx2 = ctx->vision_model.hparams.image_size;
+    const int ny2 = ctx->vision_model.hparams.image_size;
+
+    res->nx = nx2;
+    res->ny = ny2;
+    res->size = 3 * nx2 * ny2;
+    res->data = new float[res->size]();
+
+    const auto & m3 = ctx->image_mean; // {0.48145466f, 0.4578275f, 0.40821073f};
+    const auto & s3 = ctx->image_std;  // {0.26862954f, 0.26130258f, 0.27577711f};
+
+    for (int y = 0; y < ny2; y++) {
+        for (int x = 0; x < nx2; x++) {
+            for (int c = 0; c < 3; c++) {
+                const int i = 3 * (y * nx2 + x) + c;
+                res->data[i] = ((float(img->data[i]) / 255.0f) - m3[c]) / s3[c];
+            }
+        }
+    }
+
+    return true;
+
+}
+
 // Structure to hold the image data as an input to function to be executed for thread
 typedef struct {
     const clip_image_u8 * input;

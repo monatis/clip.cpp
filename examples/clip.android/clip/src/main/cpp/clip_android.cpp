@@ -183,6 +183,85 @@ Java_android_clip_cpp_CLIPAndroid_clipImageEncode__JLjava_nio_ByteBuffer_2IIIIZ(
 }
 
 extern "C" JNIEXPORT jfloatArray JNICALL
+Java_android_clip_cpp_CLIPAndroid_clipImageEncodeNoResize__JLjava_nio_ByteBuffer_2IIIIZ(
+        JNIEnv *env,
+        jobject,
+        jlong ctx_ptr,
+        jobject img_buffer,
+        jint width,
+        jint height,
+        jint n_threads,
+        jint vector_dims,
+        jboolean normalize
+) {
+    LOGi("Vector dims: %d", vector_dims);
+    LOGi("Normalize: %d", normalize);
+    LOGi("Image size: %d x %d", width, height);
+
+    auto* ctx = reinterpret_cast<clip_ctx*>(ctx_ptr);
+    auto* img = clip_image_u8_make();
+    img -> nx = width;
+    img -> ny = height;
+    img -> data = reinterpret_cast<uint8_t*>(env -> GetDirectBufferAddress(img_buffer));
+    img -> size = width * height * 3;
+
+    auto* img_f32 = clip_image_f32_make();
+    img_f32 -> nx = width;
+    img_f32 -> ny = height;
+    img_f32 -> data = new float[width * height * 3];
+    img_f32 -> size = width * height * 3;
+    clip_image_preprocess(ctx, img, img_f32);
+
+    float image_embedding[vector_dims];
+    clip_image_encode(ctx, n_threads, img_f32, image_embedding, normalize);
+    jfloatArray result = env -> NewFloatArray(vector_dims);
+    env -> SetFloatArrayRegion(result, 0, vector_dims, image_embedding);
+
+    return result;
+}
+
+extern "C"
+JNIEXPORT jfloatArray JNICALL
+Java_android_clip_cpp_CLIPAndroid_clipZeroShotClassify(
+        JNIEnv *env,
+        jobject thiz,
+        jlong context_ptr,
+        jint num_threads,
+        jobject image_buffer,
+        jint width,
+        jint height,
+        jobjectArray labels) {
+    auto* ctx = reinterpret_cast<clip_ctx*>(context_ptr);
+
+    auto* img = clip_image_u8_make();
+    img -> nx = width;
+    img -> ny = height;
+    img -> data = reinterpret_cast<uint8_t*>(env -> GetDirectBufferAddress(image_buffer));
+    img -> size = width * height * 3;
+
+    int n_labels = env -> GetArrayLength(labels);
+    const char* labels_cstr[n_labels];
+    for (int i = 0; i < env -> GetArrayLength(labels); i++) {
+        auto label = (jstring) env -> GetObjectArrayElement(labels, i);
+        labels_cstr[i] = env -> GetStringUTFChars(label, nullptr);
+    }
+
+    float sorted_scores[n_labels];
+    int sorted_indices[n_labels];
+    clip_zero_shot_label_image(ctx, num_threads, img, labels_cstr, n_labels, sorted_scores, sorted_indices);
+
+    float sorted_indices_fp[n_labels];
+    for (int i = 0; i < n_labels; i++) {
+        sorted_indices_fp[i] = (float)sorted_indices[i];
+    }
+    jfloatArray scores_indices = env -> NewFloatArray(2 * n_labels);
+    env -> SetFloatArrayRegion(scores_indices, 0, n_labels, sorted_scores);
+    env -> SetFloatArrayRegion(scores_indices, n_labels, n_labels, sorted_indices_fp);
+
+    return scores_indices;
+}
+
+extern "C" JNIEXPORT jfloatArray JNICALL
 Java_android_clip_cpp_CLIPAndroid_clipBatchImageEncode__J_3Ljava_nio_ByteBuffer_2_3I_3IIIZ(
         JNIEnv *env,
         jobject,

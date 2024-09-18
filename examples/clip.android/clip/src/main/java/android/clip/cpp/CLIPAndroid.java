@@ -98,6 +98,24 @@ public class CLIPAndroid {
     }
 
     /**
+     * Encode an image into a vector using the CLIP model, without resizing the image
+     * This is useful when the image is already of the required size.
+     * The required size can be obtained from CLIPVisionHyperParameters.imageSize
+     *
+     * @param image      a `ByteBuffer` containing the image data in RGBRGB... format where each component is a byte
+     *                   and the image is of size `width` x `height`
+     * @param width      the width of the image
+     * @param height     the height of the image
+     * @param numThreads the number of threads to use for encoding
+     * @param vectorDims the dimension of the output vector from CLIPVisionHyperParameters.projectionDim
+     * @param normalize  whether to normalize the output vector
+     * @return a float array (embedding) of size `vectorDims` containing the encoded image
+     */
+    public float[] encodeImageNoResize(ByteBuffer image, int width, int height, int numThreads, int vectorDims, boolean normalize) {
+        return clipImageEncodeNoResize(contextPtr, image, width, height, numThreads, vectorDims, normalize);
+    }
+
+    /**
      * Encode a batch of images into vectors using the CLIP model
      *
      * @param images an array of `ByteBuffer` containing the image data in RGBRGB... format where each component is a byte
@@ -137,6 +155,21 @@ public class CLIPAndroid {
     }
 
     /**
+     * Perform zero-shot image classification using the CLIP model
+     *
+     * @param image a `ByteBuffer` containing the image data in RGBRGB... format where each component is a byte
+     * @param width width of the image
+     * @param height height of the image
+     * @param numThreads number of threads to use
+     * @param labels Comma-separated labels (all in lower-case) to classify the image into
+     * @return an array [s_1, s_2, ..., s_n, i_1, i_2, ..., i_n] where (s_1, ..., s_n) are the sorted scores (in descending order)
+     *         and (i_1, ..., i_n) are the corresponding indices of the labels
+     */
+    public float[] zeroShotClassify(ByteBuffer image, int width, int height, int numThreads, String[] labels) {
+        return clipZeroShotClassify(contextPtr, numThreads, image, width, height, labels);
+    }
+
+    /**
      * Calculate the similarity score between two vectors
      *
      * @param vec1 first vector
@@ -168,9 +201,13 @@ public class CLIPAndroid {
 
     private native float[] clipImageEncode(long contextPtr, ByteBuffer imageBuffer, int width, int height, int numThreads, int vectorDims, boolean normalize);
 
+    private native float[] clipImageEncodeNoResize(long contextPtr, ByteBuffer imageBuffer, int width, int height, int numThreads, int vectorDims, boolean normalize);
+
     private native float[] clipBatchImageEncode(long contextPtr, ByteBuffer[] imageBuffers, int[] widths, int[] heights, int numThreads, int vectorDims, boolean normalize);
 
     private native float[] clipTextEncode(long contextPtr, String text, int numThreads, int vectorDims, boolean normalize);
+
+    private native float[] clipZeroShotClassify(long contextPtr, int numThreads, ByteBuffer imageBuffer, int width, int height, String[] labels);
 
     private native float clipSimilarityScore(float[] vec1, float[] vec2);
 
