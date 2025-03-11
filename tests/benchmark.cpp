@@ -52,7 +52,7 @@ int main(int argc, char ** argv) {
 
     const int vec_dim = clip_get_text_hparams(ctx)->projection_dim;
 
-    float txt_vecs[n_labels * vec_dim];
+    float *txt_vecs = new float[n_labels * vec_dim];
 
     ggml_time_init();
 
@@ -79,11 +79,11 @@ int main(int argc, char ** argv) {
     int n_total_items = 0;         // total number of images processed
     float total_acc1_score = 0.0f; // total accuracy at 1 for the intire dataset
     float total_acc5_score = 0.0f; // total accuracy at 5 in intitre dataset
-    float img_vecs[vec_dim * batch_size];
+    float *img_vecs = new float[vec_dim * batch_size];
 
-    float similarities[n_labels];
-    float sorted_scores[n_labels];
-    int indices[n_labels];
+    float *similarities = new float[n_labels];
+    float *sorted_scores = new float[n_labels];
+    int *indices = new int[n_labels];
     std::vector<clip_image_u8> img_inputs(batch_size);
     std::vector<clip_image_f32> imgs_resized(batch_size);
 
@@ -167,6 +167,11 @@ int main(int argc, char ** argv) {
     }
 
     clip_free(ctx);
+    delete[] txt_vecs;
+    delete[] img_vecs;
+    delete[] similarities;
+    delete[] sorted_scores;
+    delete[] indices;
 
     return 0;
 }

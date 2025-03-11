@@ -15,7 +15,7 @@ int main(int argc, char ** argv) {
         printf("%s: You must specify at least 2 texts for zero-shot labeling\n", __func__);
     }
 
-    const char * labels[n_labels];
+    const char ** labels = new const char *[n_labels];
     for (size_t i = 0; i < n_labels; ++i) {
         labels[i] = params.texts[i].c_str();
     }
@@ -34,8 +34,8 @@ int main(int argc, char ** argv) {
         return 1;
     }
 
-    float sorted_scores[n_labels];
-    int sorted_indices[n_labels];
+    float *sorted_scores = new float[n_labels];
+    int *sorted_indices = new int[n_labels];
     if (!clip_zero_shot_label_image(ctx, params.n_threads, &input_img, labels, n_labels, sorted_scores, sorted_indices)) {
         fprintf(stderr, "Unable to apply ZSL\n");
         return 1;
@@ -48,6 +48,9 @@ int main(int argc, char ** argv) {
     }
 
     clip_free(ctx);
+    delete[] labels;
+    delete[] sorted_scores;
+    delete[] sorted_indices;
 
     return 0;
 }

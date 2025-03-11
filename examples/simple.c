@@ -35,7 +35,7 @@ int main() {
     }
 
     // Encode image
-    float img_vec[vec_dim];
+    float *img_vec = (float*)malloc(vec_dim * sizeof(float));
     if (!clip_image_encode(ctx, n_threads, img_res, img_vec, true)) {
         fprintf(stderr, "%s: failed to encode image\n", __func__);
         return 1;
@@ -46,7 +46,7 @@ int main() {
     clip_tokenize(ctx, text, tokens);
 
     // Encode text
-    float txt_vec[vec_dim];
+    float *txt_vec= (float *)malloc(vec_dim * sizeof(float));
     if (!clip_text_encode(ctx, n_threads, tokens, txt_vec, true)) {
         fprintf(stderr, "%s: failed to encode text\n", __func__);
         return 1;
@@ -66,6 +66,8 @@ int main() {
 
     // Cleanup
     clip_free(ctx);
+    free(img_vec);
+    free(txt_vec);
 
     return 0;
 }

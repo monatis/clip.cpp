@@ -7,6 +7,16 @@
 
 struct clip_ctx;
 
+#if defined(_WIN32)
+
+#define NOMINMAX
+#include <windows.h>
+
+typedef HANDLE pthread_t;
+typedef DWORD thread_ret_t;
+
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
