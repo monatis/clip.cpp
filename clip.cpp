@@ -725,8 +725,61 @@ bool clip_image_load_from_file(const char * fname, clip_image_u8 * img) {
     return true;
 }
 
+// Precompute bicubic filter coefficients
+static bool precompute_coeffs(int inSize, float in0, float in1, int outSize, double ** kkp, int ** boundsp, int * ksize) {
+    double support = 2.0; // Bicubic filter support from Resample.c
+    double filterscale = (double)(in1 - in0) / outSize;
+    if (filterscale < 1.0) {
+        filterscale = 1.0;
+    }
+    support *= filterscale;
+    int ksize_local = (int)ceil(support) * 2 + 1;
+
+    double * kk = (double *)malloc(outSize * ksize_local * sizeof(double));
+    int * bounds = (int *)malloc(outSize * 2 * sizeof(int));
+    if (!kk || !bounds) {
+        free(kk);
+        free(bounds);
+        return false;
+    }
+
+    for (int xx = 0; xx < outSize; xx++) {
+        double center = in0 + (xx + 0.5) * (in1 - in0) / outSize;
+        double ww = 0.0;
+        double ss = 1.0 / filterscale;
+        int xmin = (int)(center - support + 0.5);
+        if (xmin < 0)
+            xmin = 0;
+        int xmax = (int)(center + support + 0.5);
+        if (xmax > inSize)
+            xmax = inSize;
+        xmax -= xmin;
+
+        double * k = &kk[xx * ksize_local];
+        for (int x = 0; x < xmax; x++) {
+            double w = bicubic_filter((x + xmin - center + 0.5) * ss);
+            k[x] = w;
+            ww += w;
+        }
+        for (int x = 0; x < xmax; x++) {
+            if (ww != 0.0) {
+                k[x] /= ww;
+            }
+        }
+        for (int x = xmax; x < ksize_local; x++) {
+            k[x] = 0.0;
+        }
+        bounds[xx * 2 + 0] = xmin;
+        bounds[xx * 2 + 1] = xmax;
+    }
+
+    *kkp = kk;
+    *boundsp = bounds;
+    *ksize = ksize_local;
+    return true;
+}
+
 // normalize: x = (x - mean) / std
-// TODO: implement bicubic interpolation instead of linear.
 bool clip_image_preprocess(const clip_ctx * ctx, const clip_image_u8 * img, clip_image_f32 * res) {
     if (!ctx->has_vision_encoder) {
         printf("This gguf file seems to have no vision encoder\n");
@@ -735,62 +788,126 @@ bool clip_image_preprocess(const clip_ctx * ctx, const clip_image_u8 * img, clip
 
     const int nx = img->nx;
     const int ny = img->ny;
-
     const int nx2 = ctx->vision_model.hparams.image_size;
     const int ny2 = ctx->vision_model.hparams.image_size;
 
+    // Setting the output image size and allocating memory
     res->nx = nx2;
     res->ny = ny2;
     res->size = 3 * nx2 * ny2;
     res->data = new float[res->size]();
+    if (!res->data) {
+        printf("clip_image_f32 Memory allocation failed\n");
+        return false;
+    }
 
-    const float scale = std::max(nx, ny) / (float)ctx->vision_model.hparams.image_size;
+    // Calculate aspect ratio maintaining scaling
+    const float scale = std::min((float)nx, (float)ny) / (float)ctx->vision_model.hparams.image_size;
+    const int nx3 = (int)(nx / scale + 0.5f);
+    const int ny3 = (int)(ny / scale + 0.5f);
 
-    const int nx3 = int(nx / scale + 0.5f);
-    const int ny3 = int(ny / scale + 0.5f);
+    const auto & m3 = ctx->image_mean;
+    const auto & s3 = ctx->image_std;
 
-    const auto & m3 = ctx->image_mean; // {0.48145466f, 0.4578275f, 0.40821073f};
-    const auto & s3 = ctx->image_std;  // {0.26862954f, 0.26130258f, 0.27577711f};
+    // Calculating horizontal and vertical coeffs
+    double *kk_horiz, *kk_vert;
+    int *bounds_horiz, *bounds_vert;
+    int ksize_horiz, ksize_vert;
 
-    for (int y = 0; y < ny3; y++) {
-        for (int x = 0; x < nx3; x++) {
+    if (!precompute_coeffs(nx, 0.0f, (float)nx, nx3, &kk_horiz, &bounds_horiz, &ksize_horiz) ||
+        !precompute_coeffs(ny, 0.0f, (float)ny, ny3, &kk_vert, &bounds_vert, &ksize_vert)) {
+        delete[] res->data;
+        free(kk_horiz);
+        free(bounds_horiz);
+        free(kk_vert);
+        free(bounds_vert);
+        printf("Failed to calculate coeffs\n");
+        return false;
+    }
+
+    // Intermediate image buffer (stores horizontal resampling results)
+    float * temp = new float[3 * nx3 * ny]();
+    if (!temp) {
+        delete[] res->data;
+        free(kk_horiz);
+        free(bounds_horiz);
+        free(kk_vert);
+        free(bounds_vert);
+        printf("Failed to allocate intermediate buffer memory\n");
+        return false;
+    }
+
+    // Horizontal bicubic resampling
+    for (int y = 0; y < ny; y++) {
+        for (int xx = 0; xx < nx3; xx++) {
+            int xmin = bounds_horiz[xx * 2 + 0];
+            int xmax = bounds_horiz[xx * 2 + 1];
+            double * k = &kk_horiz[xx * ksize_horiz];
             for (int c = 0; c < 3; c++) {
-                // linear interpolation
-                const float sx = (x + 0.5f) * scale - 0.5f;
-                const float sy = (y + 0.5f) * scale - 0.5f;
-
-                const int x0 = std::max(0, (int)std::floor(sx));
-                const int y0 = std::max(0, (int)std::floor(sy));
-
-                const int x1 = std::min(x0 + 1, nx - 1);
-                const int y1 = std::min(y0 + 1, ny - 1);
-
-                const float dx = sx - x0;
-                const float dy = sy - y0;
-
-                const int j00 = 3 * (y0 * nx + x0) + c;
-                const int j01 = 3 * (y0 * nx + x1) + c;
-                const int j10 = 3 * (y1 * nx + x0) + c;
-                const int j11 = 3 * (y1 * nx + x1) + c;
-
-                const float v00 = img->data[j00];
-                const float v01 = img->data[j01];
-                const float v10 = img->data[j10];
-                const float v11 = img->data[j11];
-
-                const float v0 = v00 * (1.0f - dx) + v01 * dx;
-                const float v1 = v10 * (1.0f - dx) + v11 * dx;
-
-                const float v = v0 * (1.0f - dy) + v1 * dy;
-
-                const uint8_t v2 = std::min(std::max(std::round(v), 0.0f), 255.0f);
-
-                const int i = 3 * (y * nx3 + x) + c;
-
-                res->data[i] = ((float(v2) / 255.0f) - m3[c]) / s3[c];
+                double ss = 0.0;
+                for (int x = 0; x < xmax; x++) {
+                    int src_idx = 3 * (y * nx + (x + xmin)) + c;
+                    ss += (double)img->data[src_idx] * k[x];
+                }
+                int dst_idx = 3 * (y * nx3 + xx) + c;
+                temp[dst_idx] = std::min(std::max((float)ss, 0.0f), 255.0f);
             }
         }
     }
+
+    // Vertical bicubic resampling
+    float * resampled = new float[3 * nx3 * ny3]();
+    if (!resampled) {
+        delete[] temp;
+        delete[] res->data;
+        free(kk_horiz);
+        free(bounds_horiz);
+        free(kk_vert);
+        free(bounds_vert);
+        printf("Failed to allocate resampling buffer memory\n");
+        return false;
+    }
+
+    for (int yy = 0; yy < ny3; yy++) {
+        int ymin = bounds_vert[yy * 2 + 0];
+        int ymax = bounds_vert[yy * 2 + 1];
+        double * k = &kk_vert[yy * ksize_vert];
+        for (int x = 0; x < nx3; x++) {
+            for (int c = 0; c < 3; c++) {
+                double ss = 0.0;
+                for (int y = 0; y < ymax; y++) {
+                    int src_idx = 3 * ((y + ymin) * nx3 + x) + c;
+                    ss += (double)temp[src_idx] * k[y];
+                }
+                int dst_idx = 3 * (yy * nx3 + x) + c;
+                resampled[dst_idx] = std::min(std::max((float)ss, 0.0f), 255.0f);
+            }
+        }
+    }
+
+    // Center crop and normalize
+    int x_offset = (nx3 - nx2) / 2;
+    int y_offset = (ny3 - ny2) / 2;
+
+    for (int yy = 0; yy < ny2; yy++) {
+        for (int x = 0; x < nx2; x++) {
+            int src_y = yy + y_offset;
+            int src_x = x + x_offset;
+            int src_idx = 3 * (src_y * nx3 + src_x);
+            int dst_idx = 3 * (yy * nx2 + x);
+            for (int c = 0; c < 3; c++) {
+                float v = resampled[src_idx + c];
+                res->data[dst_idx + c] = ((v / 255.0f) - m3[c]) / s3[c];
+            }
+        }
+    }
+
+    delete[] resampled;
+    delete[] temp;
+    free(kk_horiz);
+    free(bounds_horiz);
+    free(kk_vert);
+    free(bounds_vert);
 
     return true;
 }
