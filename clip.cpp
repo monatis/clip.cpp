@@ -725,7 +725,6 @@ bool clip_image_load_from_file(const char * fname, clip_image_u8 * img) {
     return true;
 }
 
-// Bicubic filter from Resample.c
 static inline double bicubic_filter(double x) {
 #define a -0.5
     if (x < 0.0) {
@@ -741,7 +740,6 @@ static inline double bicubic_filter(double x) {
 #undef a
 }
 
-// Precompute bicubic filter coefficients
 static bool precompute_coeffs(int inSize, float in0, float in1, int outSize, double ** kkp, int ** boundsp, int * ksize) {
     double support = 2.0; // Bicubic filter support from Resample.c
     double filterscale = (double)(in1 - in0) / outSize;
