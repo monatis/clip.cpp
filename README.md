@@ -224,4 +224,6 @@ output_file: optional. if specified, dump the output to this file instead of std
 See [tests/README.md](tests/README.md) for more info about benchmarking.
 
 ## Future Work
--   [ ] Implement proper bicubic interpolation (PIL uses a convolutions-based algorithm, and it's more stable than affine transformations).
+-   [ ] Integrate up to the latest GGML and support multiple backends.
+
+-   [ ] 
