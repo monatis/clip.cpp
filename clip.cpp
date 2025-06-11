@@ -5,14 +5,64 @@
 #include <fstream>
 #include <iostream>
 #include <map>
-#include <pthread.h>
 #include <regex>
 #include <stdexcept>
 #include <thread>
 #include <vector>
+#include <algorithm>
 
 #include "clip.h"
 #include "ggml/ggml.h"
+
+#if defined(_WIN32)
+
+#define NOMINMAX
+#include <windows.h>
+
+typedef volatile LONG atomic_int;
+typedef atomic_int atomic_bool;
+
+static void atomic_store(atomic_int * ptr, LONG val) { InterlockedExchange(ptr, val); }
+static LONG atomic_load(atomic_int * ptr) { return InterlockedCompareExchange(ptr, 0, 0); }
+static LONG atomic_fetch_add(atomic_int * ptr, LONG inc) { return InterlockedExchangeAdd(ptr, inc); }
+static LONG atomic_fetch_sub(atomic_int * ptr, LONG dec) { return atomic_fetch_add(ptr, -(dec)); }
+
+typedef HANDLE pthread_t;
+
+typedef DWORD thread_ret_t;
+static int pthread_create(pthread_t * out, void * unused, thread_ret_t (*func)(void *), void * arg) {
+    (void)unused;
+    HANDLE handle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)func, arg, 0, NULL);
+    if (handle == NULL) {
+        return EAGAIN;
+    }
+
+    *out = handle;
+    return 0;
+}
+
+static int pthread_join(pthread_t thread, void * unused) {
+    (void)unused;
+    return (int)WaitForSingleObject(thread, INFINITE);
+}
+
+static int sched_yield(void) {
+    Sleep(0);
+    return 0;
+}
+
+#define pthread_exit(stat) return stat;
+#else
+#include <pthread.h>
+#include <stdatomic.h>
+
+typedef void * thread_ret_t;
+
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#endif
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -941,7 +991,7 @@ typedef struct {
 } ImageDataRange;
 
 // Function to preprocess a single image in a thread
-void * preprocess_image(void * arg) {
+thread_ret_t preprocess_image(void * arg) {
     ImageDataRange * imageDataRange = static_cast<ImageDataRange *>(arg);
 
     ImageData * imageData_start = imageDataRange->start;
@@ -1538,8 +1588,8 @@ bool clip_compare_text_and_image(const clip_ctx * ctx, const int n_threads, cons
 
     // prepare image and text vectors
     const int projection_dim = ctx->vision_model.hparams.projection_dim;
-    float img_vec[projection_dim];
-    float txt_vec[projection_dim];
+    float *img_vec = new float[projection_dim];
+    float *txt_vec = new float[projection_dim];
 
     // tokenize and encode text
     clip_tokens tokens;
@@ -1565,6 +1615,8 @@ bool clip_compare_text_and_image(const clip_ctx * ctx, const int n_threads, cons
     // compute similarity
     *score = clip_similarity_score(img_vec, txt_vec, projection_dim);
 
+    delete[] img_vec;
+    delete[] txt_vec;
     return true;
 }
 
@@ -1633,14 +1685,14 @@ bool clip_zero_shot_label_image(struct clip_ctx * ctx, const int n_threads, cons
 
     clip_image_preprocess(ctx, input_img, &img_res);
 
-    float img_vec[vec_dim];
+    float *img_vec = new float[vec_dim];
     if (!clip_image_encode(ctx, n_threads, &img_res, img_vec, false)) {
         return false;
     }
 
     // encode texts and compute similarities
-    float txt_vec[vec_dim];
-    float similarities[n_labels];
+    float *txt_vec = new float[vec_dim];
+    float *similarities = new float[n_labels];
 
     for (int i = 0; i < n_labels; i++) {
         const auto & text = labels[i];
@@ -1652,6 +1704,10 @@ bool clip_zero_shot_label_image(struct clip_ctx * ctx, const int n_threads, cons
 
     // apply softmax and sort scores
     softmax_with_sorting(similarities, n_labels, scores, indices);
+
+    delete[] img_vec;
+    delete[] txt_vec;
+    delete[] similarities;
 
     return true;
 }
