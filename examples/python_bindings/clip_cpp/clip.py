@@ -199,11 +199,11 @@ softmax_with_sorting.restype = ctypes.c_bool
 # ]
 # clip_image_batch_encode.restype = ctypes.c_bool
 
-make_clip_image_u8 = clip_lib.make_clip_image_u8
+make_clip_image_u8 = clip_lib.clip_image_u8_make
 make_clip_image_u8.argtypes = []
 make_clip_image_u8.restype = ctypes.POINTER(ClipImageU8)
 
-make_clip_image_f32 = clip_lib.make_clip_image_f32
+make_clip_image_f32 = clip_lib.clip_image_f32_make
 make_clip_image_f32.argtypes = []
 make_clip_image_f32.restype = ctypes.POINTER(ClipImageF32)
 
