@@ -1002,6 +1002,8 @@ void clip_image_batch_preprocess(const clip_ctx * ctx, const int n_threads, cons
         for (t = 0; t < num_threads; t++) {
             pthread_join(threads[t], NULL);
         }
+
+        delete[] imageDataRange;
     }
 }
 
