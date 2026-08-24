@@ -27,6 +27,7 @@ clip.cpp also has a short startup time compared to large ML frameworks, which ma
 
 ## Hot topics
 
+-   **NEW!** 08/24/2026: Check out my new GGML-based project [ggmlc](https://github.com/monatis/ggmlc), an ML compiler to convert **any** PyTorch or JAX model to GGML / GGUF automatically, and run it anywhere **without manually implementing the model graph in C++**.
 -   01/27/2024: Clojure bindings available, [clip.clj](https://github.com/phronmophobic/clip.clj).
 -   09/27/2023: clip.cpp now uses a new model file structure in GGUF format. This is a breaking change. See bwlow for more information.
 -   09/14/2023: All functions are C-compatible now. `zsl` example is updated to match Huggingface's zero-shot behavior in the zero-shot pipeline.
