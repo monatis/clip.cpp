@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.12)
 project("CLIP.cpp" C CXX)
 
+set(CMAKE_CXX_STANDARD 20)
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if (NOT XCODE AND NOT MSVC AND NOT CMAKE_BUILD_TYPE)
@@ -22,7 +24,7 @@ endif()
 
 # general
 option(CLIP_STATIC                 "CLIP: static link libraries"                          OFF)
-option(CLIP_BUILD_TESTS             "CLIP: build tests"                                    ${CLIP_STANDALONE})
+option(CLIP_BUILD_TESTS            "CLIP: build tests"                                    ${CLIP_STANDALONE})
 option(CLIP_BUILD_EXAMPLES         "CLIP: build examples"                                 ${CLIP_STANDALONE})
 option(CLIP_BUILD_IMAGE_SEARCH     "CLIP: build image-search"                             OFF)
 option(CLIP_NATIVE                 "CLIP: enable -march=native flag"                      ON)
@@ -42,12 +44,12 @@ option(CLIP_SANITIZE_UNDEFINED     "CLIP: enable undefined sanitizer"           
 option(CLIP_AVX                    "CLIP: enable AVX"                                     ON)
 option(CLIP_AVX2                   "CLIP: enable AVX2"                                    ON)
 option(CLIP_FMA                    "CLIP: enable FMA"                                     ON)
-option(CLIP_AVX512                 "clip: enable AVX512"                                  OFF)
-option(CLIP_AVX512_VBMI            "clip: enable AVX512-VBMI"                             OFF)
-option(CLIP_AVX512_VNNI            "clip: enable AVX512-VNNI"                             OFF)
+option(CLIP_AVX512                 "CLIP: enable AVX512"                                  OFF)
+option(CLIP_AVX512_VBMI            "CLIP: enable AVX512-VBMI"                             OFF)
+option(CLIP_AVX512_VNNI            "CLIP: enable AVX512-VNNI"                             OFF)
 # in MSVC F16C is implied with AVX2/AVX512
 if (NOT MSVC)
-    option(CLIP_F16C               "clip: enable F16C"                                    ON)
+    option(CLIP_F16C               "CLIP: enable F16C"                                    ON)
 endif()
 
 

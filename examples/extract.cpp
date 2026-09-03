@@ -28,6 +28,7 @@ int main(int argc, char ** argv) {
     int totalInputs = params.image_paths.size() + params.texts.size();
     int processedInputs = 0;
     int textCounter = 0; // Counter for generating unique filenames for text vectors
+    float * vec;
     for (const std::string & img_path : params.image_paths) {
         // load the image
         const char * img_path_cstr = img_path.c_str();
@@ -45,7 +46,7 @@ int main(int argc, char ** argv) {
 
         const int vec_dim = clip_get_vision_hparams(ctx)->projection_dim;
         int shape[2] = {1, vec_dim};
-        float vec[vec_dim];
+        vec = new float[vec_dim];
         clip_image_encode(ctx, params.n_threads, &img_res, vec, false);
 
         // Generate a unique output filename for each image
@@ -57,6 +58,7 @@ int main(int argc, char ** argv) {
         float progressPercentage = (float)processedInputs / totalInputs * 100.0f;
         printf("\rProcessing: %.2f%%", progressPercentage);
         fflush(stdout);
+        delete[] vec;
     }
 
     for (const std::string & text : params.texts) {
@@ -69,7 +71,7 @@ int main(int argc, char ** argv) {
 
         const int vec_dim = clip_get_text_hparams(ctx)->projection_dim;
         int shape[2] = {1, vec_dim};
-        float vec[vec_dim];
+        vec = new float[vec_dim];
 
         if (!clip_text_encode(ctx, params.n_threads, &tokens, vec, false)) {
             printf("Unable to encode text\n");
@@ -85,6 +87,7 @@ int main(int argc, char ** argv) {
         // Generate a unique output filename for each text
         std::string output_filename = "./text_vec_" + std::to_string(textCounter++) + ".npy";
         writeNpyFile(output_filename.c_str(), vec, shape, 2);
+        delete[] vec;
     }
 
     printf("\n"); // Print a newline to clear the progress bar line
